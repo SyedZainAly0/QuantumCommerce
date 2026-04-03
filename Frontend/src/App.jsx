@@ -4,7 +4,7 @@ import axios from 'axios';
 function App() {
   const [users, setUsers] = useState([]);
 
-  // 1. Data mangwane ka function
+
   const fetchUsers = async () => {
     try {
       const response = await axios.get('http://localhost:8000/users/');
@@ -14,7 +14,7 @@ function App() {
     }
   };
 
-  // 2. Page load hote hi function ko chalana
+
   useEffect(() => {
     fetchUsers();
   }, []);

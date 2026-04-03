@@ -2,10 +2,10 @@ from sqlalchemy.orm import Session
 from database import SessionLocal, engine
 import models
 
-# Database connection hasil karein
+
 db = SessionLocal()
 
-# Dummy Data ki list
+
 dummy_users = [
     {"full_name": "Ali Ahmed", "email": "ali@example.com"},
     {"full_name": "Sara Khan", "email": "sara@example.com"},
