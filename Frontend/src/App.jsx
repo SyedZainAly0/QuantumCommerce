@@ -1,35 +1,21 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import Register from './components/Register';
+import Login from './components/Login';
+import Dashboard from './components/Dashboard';
 
 function App() {
-  const [users, setUsers] = useState([]);
-
-
-  const fetchUsers = async () => {
-    try {
-      const response = await axios.get('http://localhost:8000/users/');
-      setUsers(response.data);
-    } catch (error) {
-      console.error("Error fetching data:", error);
-    }
-  };
-
-
-  useEffect(() => {
-    fetchUsers();
-  }, []);
-
   return (
-    <div style={{ padding: '20px' }}>
-      <h1>QuantumCommerce Users</h1>
-      <ul>
-        {users.map(user => (
-          <li key={user.id}>
-            {user.full_name} - {user.email}
-          </li>
-        ))}
-      </ul>
-    </div>
+    <Router>
+      <div className="App">
+        <Routes>
+          <Route path="/register" element={<Register />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/" element={<Navigate to="/login" />} />
+        </Routes>
+      </div>
+    </Router>
   );
 }
 

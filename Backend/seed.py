@@ -11,7 +11,13 @@ dummy_users = [
     {"full_name": "Sara Khan", "email": "sara@example.com"},
     {"full_name": "Zain Malik", "email": "zain@example.com"},
     {"full_name": "Hamza Dev", "email": "hamza@example.com"},
-    {"full_name": "Fatima Noor", "email": "fatima@example.com"}
+    {"full_name": "Fatima Noor", "email": "fatima@example.com"},
+    {"full_name": "Usman", "email": "USman@example.com"},
+    {"full_name": "Ahmed", "email": "Ahmed@example.com"},
+    {"full_name": "Zain", "email": "Zain@example.com"},
+    {"full_name": "Furqan", "email": "furqan@example.com"},
+    {"full_name": "Hamid", "email": "Hamid@example.com"}
+
 ]
 
 def seed_data():
