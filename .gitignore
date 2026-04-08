@@ -1,2 +1,17 @@
-.env
+# Python
+__pycache__/
+*.pyc
+
+# Virtual Environment
+myvenv/
+venv/
 Backend/myvenv/
+
+# Environment files
+.env
+
+# Node (Frontend)
+node_modules/
+
+# Misc
+.DS_Store
