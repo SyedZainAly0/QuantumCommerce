@@ -1,3 +1,6 @@
+import sys
+from os.path import abspath, dirname
+
 from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config
@@ -5,15 +8,11 @@ from sqlalchemy import pool
 
 from alembic import context
 
-
-
-import sys
-from os.path import abspath, dirname
-
-
 sys.path.insert(0, dirname(dirname(abspath(__file__))))
 
-from app.models import Base  
+from Authenticationapp.models import Base  
+from Products import models
+
 config = context.config
 
 
@@ -22,7 +21,6 @@ if config.config_file_name is not None:
 
 
 target_metadata = Base.metadata
-
 
 
 

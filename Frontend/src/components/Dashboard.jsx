@@ -1,21 +1,32 @@
 import React, { useEffect, useState } from 'react';
-import api from "../services/api"
+import api from "../services/api";
 import { useNavigate } from 'react-router-dom';
 
 const Dashboard = () => {
+
   const [user, setUser] = useState(null);
+  const [products, setProducts] = useState([]);
   const navigate = useNavigate();
 
   useEffect(() => {
-    const fetchUser = async () => {
+    const fetchData = async () => {
       try {
-        const response = await api.get('/auth/me');
-        setUser(response.data);
+        // 1. Get current user (from cookie)
+        const res = await api.get('/auth/me');
+        setUser(res.data);
+
+        // 2. If admin → fetch admin products
+        if (res.data.role === "admin") {
+          const prodRes = await api.get('/products/admin');
+          setProducts(prodRes.data);
+        }
+
       } catch (err) {
         navigate('/login');
       }
     };
-    fetchUser();
+
+    fetchData();
   }, [navigate]);
 
   const handleLogout = async () => {
@@ -31,33 +42,70 @@ const Dashboard = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-5xl mx-auto">
+
+        {/* Header */}
         <header className="flex justify-between items-center bg-white p-6 rounded-lg shadow-sm mb-6">
-          <h1 className="text-2xl font-bold text-gray-800">Welcome, {user.full_name || 'User'}!</h1>
+          <h1 className="text-2xl font-bold text-gray-800">
+            Hello {user.full_name}, Welcome to {user.role === "admin" ? "Admin" : "User"} Dashboard!
+          </h1>
           <button 
             onClick={handleLogout} 
-            className="bg-red-100 text-red-600 px-4 py-2 rounded-lg font-medium hover:bg-red-200 transition"
+            className="bg-red-100 text-red-600 px-4 py-2 rounded-lg hover:bg-red-200"
           >
             Logout
           </button>
         </header>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-white p-6 rounded-lg shadow-sm border-t-4 border-blue-500">
-            <p className="text-gray-500 text-sm uppercase">User ID</p>
-            <p className="text-lg font-mono font-bold text-gray-800">{user.user_id}</p>
+        {/* User Info Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+          <div className="bg-white p-6 rounded-lg shadow-sm">
+            <p>User ID</p>
+            <p className="font-bold">{user.user_id}</p>
           </div>
-          <div className="bg-white p-6 rounded-lg shadow-sm border-t-4 border-purple-500">
-            <p className="text-gray-500 text-sm uppercase">Role</p>
-            <p className="text-lg font-bold text-gray-800 capitalize">{user.role}</p>
+          <div className="bg-white p-6 rounded-lg shadow-sm">
+            <p>Role</p>
+            <p className="font-bold">{user.role}</p>
           </div>
-          <div className="bg-white p-6 rounded-lg shadow-sm border-t-4 border-green-500">
-            <p className="text-gray-500 text-sm uppercase">Status</p>
-            <p className="text-lg font-bold text-green-600">{user.status}</p>
+          <div className="bg-white p-6 rounded-lg shadow-sm">
+            <p>Status</p>
+            <p className="font-bold text-green-600">{user.status}</p>
           </div>
         </div>
+
+        {/* ADMIN SECTION */}
+        {user.role === "admin" && (
+          <div className="bg-white p-6 rounded-lg shadow-sm">
+            <h2 className="text-xl font-bold mb-4">Your Products</h2>
+
+            {products.length === 0 ? (
+              <p>No products yet</p>
+            ) : (
+              <table className="w-full border">
+                <thead>
+                  <tr className="bg-gray-100">
+                    <th>Name</th>
+                    <th>Price</th>
+                    <th>Stock</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {products.map(p => (
+                    <tr key={p.id} className="text-center border-t">
+                      <td>{p.name}</td>
+                      <td>{p.price}</td>
+                      <td>{p.stock}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        )}
+
       </div>
     </div>
   );
 };
+
 export default Dashboard;
