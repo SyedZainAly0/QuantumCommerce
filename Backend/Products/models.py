@@ -7,7 +7,8 @@ class Category(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, unique=True, index=True)
    
-    products = relationship("Product", back_populates="category")
+    # Added passive_deletes=True to help SQLAlchemy handle the relationship
+    products = relationship("Product", back_populates="category", passive_deletes=True)
 
 class Product(Base):
     __tablename__ = "products"
@@ -16,7 +17,11 @@ class Product(Base):
     description = Column(Text)
     price = Column(Float)
     stock = Column(Integer, default=0)
-    category_id = Column(Integer, ForeignKey("categories.id"))
+    
+    # ✅ UPDATED: Added ondelete="SET NULL"
+    # This ensures that deleting a category doesn't crash the app
+    category_id = Column(Integer, ForeignKey("categories.id", ondelete="SET NULL"), nullable=True)
+    
     owner_id = Column(Integer, ForeignKey("users.id")) 
 
     category = relationship("Category", back_populates="products")

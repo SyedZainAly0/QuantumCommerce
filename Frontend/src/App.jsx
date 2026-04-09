@@ -1,11 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import api from './services/api';
+
 import Register from './components/Register';
 import Login from './components/Login';
-import AdminDashboard from './components/AdminDashboard';
 import UserDashboard from './components/userDashboard';
-import api from './services/api';
-import EditProduct from './components/EditProduct';
+import AdminLayout from './Admin/AdminLayout';
+import AdminHome from './Admin/AdminHome';
+import ProductForm from './Admin/ProductForm';
+import CategoryManager from './Admin/CategoryManager';
 
 
 const ProtectedRoute = ({ children, requiredRole }) => {
@@ -32,7 +35,6 @@ const ProtectedRoute = ({ children, requiredRole }) => {
   return children;
 };
 
-
 const RoleRedirect = () => {
   const [dest, setDest] = useState(null);
   useEffect(() => {
@@ -48,27 +50,29 @@ function App() {
   return (
     <Router>
       <Routes>
+
         <Route path="/register" element={<Register />} />
+
         <Route path="/login"    element={<Login />} />
 
-        <Route path="/dashboard/admin" element={
-          <ProtectedRoute requiredRole="admin"><AdminDashboard /></ProtectedRoute>
-        } />
-
+        <Route path="/dashboard/admin" element={ <ProtectedRoute requiredRole="admin"><AdminLayout /></ProtectedRoute>}>
         
-        <Route path="/dashboard/user" element={
-          <ProtectedRoute requiredRole="user"><UserDashboard /></ProtectedRoute>
-        } />
+        <Route index element={<AdminHome />}/>
+          
+        <Route path="products/add" element={<ProductForm />} />
+          
+        <Route path="products/edit/:id" element={<ProductForm />} />
+          
+        <Route path="categories" element={<CategoryManager />} />
 
-        {/* fallback /dashboard → role redirect */}
+        </Route>
+
+        <Route path="/dashboard/user" element={<ProtectedRoute requiredRole="user"><UserDashboard/></ProtectedRoute>} />
+
         <Route path="/dashboard" element={<RoleRedirect />} />
+
         <Route path="/" element={<Navigate to="/login" />} />
 
-        <Route path="/dashboard/admin/products/edit/:id" element={
-           <ProtectedRoute requiredRole="admin">
-           <EditProduct />
-       </ProtectedRoute>
-}        />
       </Routes>
     </Router>
   );
