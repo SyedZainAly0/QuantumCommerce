@@ -59,6 +59,7 @@ def create_product(
     db.add(new_product)
     db.commit()
     db.refresh(new_product)
+    print(new_product)
     return new_product
 
 # Update product (admin only, must own it)
@@ -114,3 +115,24 @@ def get_single_product(
         raise HTTPException(status_code=404, detail="Product not found")
 
     return product
+
+@router.delete("/categories/{category_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_category(
+    category_id: int, 
+    db: Session = Depends(get_db), 
+    current_admin: auth_models.User = Depends(allow_admin) # Using your existing admin check
+):
+    # 1. Find the category
+    category_query = db.query(models.Category).filter(models.Category.id == category_id)
+    category = category_query.first()
+
+    if not category:
+        raise HTTPException(status_code=404, detail="Category not found")
+
+    # 2. Delete it
+    # Note: If products are linked to this category, this may throw an error 
+    # unless your models.py has 'ondelete="SET NULL"' or 'cascade' configured.
+    category_query.delete(synchronize_session=False)
+    db.commit()
+
+    return None
