@@ -37,14 +37,15 @@ const AdminHome = () => {
       alert(err.response?.data?.detail || "Error deleting product");
     }
   };
-
+  
+  console.log("Testing-----------ok",products)
   const lowStockProducts = products.filter(p => p.stock <= LOW_STOCK_THRESHOLD);
+
 
   if (loading) return <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />;
 
   return (
     <>
-      {/* ── Metric Cards ── */}
       <div className="grid grid-cols-3 gap-4 mb-6">
         <div className="bg-white rounded-xl border border-gray-200 p-4">
           <p className="text-xs text-gray-400 mb-1">Total products</p>
@@ -60,7 +61,6 @@ const AdminHome = () => {
         </div>
       </div>
 
-      {/* ── Low Stock Alert ── */}
       {lowStockProducts.length > 0 && (
         <div className="mb-5 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-4 py-3 text-sm">
           <p className="font-medium mb-1">⚠ Low stock alert</p>
@@ -72,7 +72,6 @@ const AdminHome = () => {
         </div>
       )}
 
-      {/* ── Products Table ── */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-100 flex justify-between items-center">
           <h2 className="text-sm font-semibold text-gray-700">Your products</h2>
