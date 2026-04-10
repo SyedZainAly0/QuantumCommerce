@@ -38,7 +38,6 @@ const AdminHome = () => {
     }
   };
   
-  console.log("Testing-----------ok",products)
   const lowStockProducts = products.filter(p => p.stock <= LOW_STOCK_THRESHOLD);
 
 

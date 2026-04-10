@@ -41,7 +41,7 @@ const CategoryManager = () => {
     try {
       await api.delete(`/products/categories/${id}`);
       setMsg(`Category "${name}" deleted.`);
-      await loadCategories(); // Refresh the list
+      await loadCategories();
     } catch (err) {
       setMsg(err.response?.data?.detail || 'Error deleting category.');
     }

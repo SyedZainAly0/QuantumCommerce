@@ -15,7 +15,7 @@ const ProductForm = () => {
   });
   const [loading, setLoading] = useState(false);
 
-  // 1. Fetch Categories and (if editing) Product Data
+ 
   useEffect(() => {
     const fetchData = async () => {
       try {

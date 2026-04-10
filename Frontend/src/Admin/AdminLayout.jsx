@@ -27,13 +27,13 @@ const AdminLayout = () => {
           <p className="text-xs text-gray-400">Admin panel</p>
         </div>
         <nav className="flex flex-col gap-1 flex-1 px-2">
-          <NavLink to="/dashboard/admin" end className={({isActive}) => `flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition ${isActive ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-500 hover:bg-gray-50'}`}>
+          <NavLink to="/dashboard/admin" end className={({isActive}) => `flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition ${isActive ? 'bg-red-50 text-blue-700 font-medium' : 'text-gray-500 hover:bg-gray-50'}`}>
             Dashboard
           </NavLink>
-          <NavLink to="/dashboard/admin/products/add" className={({isActive}) => `flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition ${isActive ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-500 hover:bg-gray-50'}`}>
+          <NavLink to="/dashboard/admin/products/add" className={({isActive}) => `flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition ${isActive ? 'bg-red-50 text-blue-700 font-medium' : 'text-gray-500 hover:bg-gray-50'}`}>
             Add Product
           </NavLink>
-          <NavLink to="/dashboard/admin/categories" className={({isActive}) => `px-3 py-2 rounded-lg text-sm transition ${isActive ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-500'}`}>
+          <NavLink to="/dashboard/admin/categories" className={({isActive}) => `px-3 py-2 rounded-lg text-sm transition ${isActive ? 'bg-red-50 text-blue-700 font-medium' : 'text-gray-500'}`}>
             Categories
           </NavLink>
         </nav>
@@ -48,8 +48,9 @@ const AdminLayout = () => {
         <header className="flex items-center justify-between mb-6">
           <h1 className="text-lg font-semibold text-gray-800">Welcome, {user.full_name}</h1>
         </header>
-        {/* THIS IS WHERE THE OTHER COMPONENTS APPEAR */}
+    
         <Outlet context={{ user }} /> 
+      
       </main>
     </div>
   );
