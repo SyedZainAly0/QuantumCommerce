@@ -1,58 +1,86 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import api from '../services/api'; // This is your axios instance
+import api from '../services/api';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 const ProductForm = () => {
-  const { id } = useParams();
+  const { id } = useParams();  
   const navigate = useNavigate();
-  const [categories, setCategories] = useState([]);
-  const [form, setForm] = useState({ 
-    name: '', 
-    description: '', 
-    price: 0, 
-    stock: 0, 
-    category_id: '' 
+  const queryClient = useQueryClient();
+
+  const [form, setForm] = useState({
+    name: '',
+    description: '',
+    price: 0,
+    stock: 0,
+    category_id: ''
   });
-  const [loading, setLoading] = useState(false);
 
- 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const catRes = await api.get('/products/categories');
-        setCategories(catRes.data);
 
-        if (id) {
-          const prodRes = await api.get(`/products/${id}`);
-          setForm(prodRes.data);
-        }
-      } catch (err) {
-        console.error("Axios Error:", err);
-      }
-    };
-    fetchData();
-  }, [id]);
+  const { data: categories = [] } = useQuery({
+    queryKey: ["categories"],
+    queryFn: async () => {
+      const res = await api.get('/products/categories');
+      return res.data;
+    },
+  });
 
-  // 2. Handle Submit (POST for Add, PUT for Edit)
-  const handleSubmit = async (e) => {
+
+  const { isLoading: productLoading } = useQuery({
+    queryKey: ["product", id],
+    queryFn: async () => {
+      const res = await api.get(`/products/${id}`);
+      setForm(res.data); 
+      return res.data;
+    },
+    enabled: !!id,                  
+  });
+
+  const addMutation = useMutation({
+    mutationFn: async (newProduct) => {
+      await api.post('/products/', newProduct);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(["products"]); 
+      navigate('/dashboard/admin');
+    },
+    onError: (err) => {
+      alert(err.response?.data?.detail || 'Error adding product.');
+    }
+  });
+
+
+  const updateMutation = useMutation({
+    mutationFn: async (updatedProduct) => {
+      await api.put(`/products/${id}`, updatedProduct);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(["products"]); 
+      queryClient.invalidateQueries(["product", id]);
+      navigate('/dashboard/admin');
+    },
+    onError: (err) => {
+      alert(err.response?.data?.detail || 'Error updating product.');
+    }
+  });
+
+  const handleSubmit = (e) => {
     e.preventDefault();
-    setLoading(true);
-    try {
-      if (id) {
-        // Axios PUT request
-        await api.put(`/products/${id}`, form);
-      } else {
-        // Axios POST request
-        await api.post('/products/', form);
-      }
-      navigate('/dashboard/admin'); // Redirect back to list
-    } catch (err) {
-      const errorDetail = err.response?.data?.detail || "Error saving product";
-      alert(errorDetail);
-    } finally {
-      setLoading(false);
+    if (id) {
+      updateMutation.mutate(form); 
+    } else {
+      addMutation.mutate(form);  
     }
   };
+
+
+  const isSaving = addMutation.isPending || updateMutation.isPending;
+
+  if (id && productLoading) return (
+    <div className="flex items-center justify-center h-40">
+      <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600" />
+    </div>
+  );
 
   return (
     <div className="bg-white p-6 rounded-xl border border-gray-200 max-w-lg shadow-sm">
@@ -61,27 +89,28 @@ const ProductForm = () => {
       </h2>
 
       <form onSubmit={handleSubmit} className="space-y-4">
+
         {/* Name */}
         <div>
           <label className="block text-xs font-medium text-gray-500 mb-1">Product Name</label>
-          <input 
-            type="text" 
-            value={form.name} 
-            onChange={e => setForm({...form, name: e.target.value})} 
-            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400 outline-none" 
-            required 
+          <input
+            type="text"
+            value={form.name}
+            onChange={e => setForm({ ...form, name: e.target.value })}
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400 outline-none"
+            required
           />
         </div>
 
         {/* Description */}
         <div>
           <label className="block text-xs font-medium text-gray-500 mb-1">Description</label>
-          <textarea 
-            value={form.description} 
-            onChange={e => setForm({...form, description: e.target.value})} 
-            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400 outline-none resize-none" 
+          <textarea
+            value={form.description}
+            onChange={e => setForm({ ...form, description: e.target.value })}
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400 outline-none resize-none"
             rows="3"
-            required 
+            required
           />
         </div>
 
@@ -89,35 +118,35 @@ const ProductForm = () => {
           {/* Price */}
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">Price ($)</label>
-            <input 
-              type="number" 
+            <input
+              type="number"
               step="0.01"
-              value={form.price} 
-              onChange={e => setForm({...form, price: parseFloat(e.target.value)})} 
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400 outline-none" 
-              required 
+              value={form.price}
+              onChange={e => setForm({ ...form, price: parseFloat(e.target.value) })}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400 outline-none"
+              required
             />
           </div>
 
           {/* Stock */}
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">Stock Quantity</label>
-            <input 
-              type="number" 
-              value={form.stock} 
-              onChange={e => setForm({...form, stock: parseInt(e.target.value)})} 
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400 outline-none" 
-              required 
+            <input
+              type="number"
+              value={form.stock}
+              onChange={e => setForm({ ...form, stock: parseInt(e.target.value) })}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400 outline-none"
+              required
             />
           </div>
         </div>
 
-        {/* Category Select */}
+        {/* Category */}
         <div>
           <label className="block text-xs font-medium text-gray-500 mb-1">Category</label>
           <select
             value={form.category_id}
-            onChange={e => setForm({...form, category_id: parseInt(e.target.value)})}
+            onChange={e => setForm({ ...form, category_id: parseInt(e.target.value) })}
             className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-blue-400 outline-none"
             required
           >
@@ -130,21 +159,22 @@ const ProductForm = () => {
 
         {/* Buttons */}
         <div className="flex justify-end gap-3 pt-4">
-           <button 
-             type="button" 
-             onClick={() => navigate(-1)} 
-             className="text-sm border border-gray-200 px-4 py-2 rounded-lg hover:bg-gray-50 transition"
-           >
-             Cancel
-           </button>
-           <button 
-             type="submit" 
-             disabled={loading}
-             className="bg-blue-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-blue-700 transition font-medium disabled:opacity-50"
-           >
-             {loading ? 'Saving...' : (id ? 'Update Product' : 'Add Product')}
-           </button>
+          <button
+            type="button"
+            onClick={() => navigate(-1)}
+            className="text-sm border border-gray-200 px-4 py-2 rounded-lg hover:bg-gray-50 transition"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={isSaving}
+            className="bg-blue-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-blue-700 transition font-medium disabled:opacity-50"
+          >
+            {isSaving ? 'Saving...' : (id ? 'Update Product' : 'Add Product')}
+          </button>
         </div>
+
       </form>
     </div>
   );

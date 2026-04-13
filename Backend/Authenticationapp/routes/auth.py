@@ -32,8 +32,6 @@ def login(response: Response, user_credentials: schemas.UserLogin, db: Session =
         samesite="lax",
         secure=False
     )
-
-    
     return {
         "message": "Login Successful",
         "user_name": user.full_name,

@@ -1,36 +1,96 @@
 import React, { useEffect, useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../services/api';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useCart } from '../hooks/useCart';
 
 const UserDashboard = () => {
-  const [user, setUser] = useState(null);
-  const [products, setProducts] = useState([]);
-  const [search, setSearch] = useState('');
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const queryClient = useQueryClient();
+  const [activeTab, setActiveTab] = useState(searchParams.get('tab') === 'cart' ? 'cart' : 'browse');
+  const [search, setSearch] = useState('');
+  const guestCart = useCart();
 
+  const { data: user } = useQuery({
+    queryKey: ['me'],
+    queryFn: async () => {
+      const res = await api.get('/auth/me');
+      return res.data;
+    },
+    retry: false,
+    onError: () => navigate('/login'),
+  });
+
+  const { data: products = [] } = useQuery({
+    queryKey: ['public-products'],
+    queryFn: async () => (await api.get('/products/public')).data,
+  });
+
+  const { data: cartItems = [], isLoading: cartLoading } = useQuery({
+    queryKey: ['cart'],
+    queryFn: async () => (await api.get('/cart/')).data,
+    enabled: activeTab === 'cart',
+  });
+
+  const { data: orders = [], isLoading: ordersLoading } = useQuery({
+    queryKey: ['orders'],
+    queryFn: async () => (await api.get('/orders/')).data,
+    enabled: activeTab === 'orders',
+  });
+
+  // Sync guest cart → backend on mount
   useEffect(() => {
-    const init = async () => {
+    const syncCart = async () => {
+      if (guestCart.items.length === 0) return;
       try {
-        const res = await api.get('/auth/me');
-        if (res.data.role === 'admin') { navigate('/dashboard/admin'); return; }
-        setUser(res.data);
-        // GET /products/public — all products visible to users
-        const prodRes = await api.get('/products/public');
-        setProducts(prodRes.data);
-      } catch { navigate('/login'); }
+        for (const item of guestCart.items) {
+          await api.post('/cart/', { product_id: item.product_id, quantity: item.quantity });
+        }
+        guestCart.clearCart();
+        queryClient.invalidateQueries(['cart']);
+      } catch (e) {
+        console.error('Cart sync failed', e);
+      }
     };
-    init();
-  }, [navigate]);
+    syncCart();
+  }, []); // eslint-disable-line
+
+  const addToCartMutation = useMutation({
+    mutationFn: async ({ product_id, quantity }) =>
+      (await api.post('/cart/', { product_id, quantity })).data,
+    onSuccess: () => queryClient.invalidateQueries(['cart']),
+  });
+
+  const updateCartMutation = useMutation({
+    mutationFn: async ({ item_id, quantity }) =>
+      (await api.put(`/cart/${item_id}`, { quantity })).data,
+    onSuccess: () => queryClient.invalidateQueries(['cart']),
+  });
+
+  const removeCartMutation = useMutation({
+    mutationFn: async (item_id) => api.delete(`/cart/${item_id}`),
+    onSuccess: () => queryClient.invalidateQueries(['cart']),
+  });
+
+  const checkoutMutation = useMutation({
+    mutationFn: async () => (await api.post('/orders/checkout')).data,
+    onSuccess: () => {
+      queryClient.invalidateQueries(['cart']);
+      queryClient.invalidateQueries(['orders']);
+      queryClient.invalidateQueries(['public-products']);
+      setActiveTab('orders');
+    },
+    onError: (err) => alert(err.response?.data?.detail || 'Checkout failed'),
+  });
 
   const handleLogout = async () => {
     await api.post('/auth/logout');
     navigate('/login');
   };
 
-  if (!user) return (
-    <div className="flex items-center justify-center h-screen">
-      <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-green-600" />
-    </div>
+  const cartTotal = cartItems.reduce(
+    (sum, i) => sum + (i.product?.price || 0) * i.quantity, 0
   );
 
   const filtered = products.filter(p =>
@@ -38,112 +98,295 @@ const UserDashboard = () => {
     (p.category?.name || '').toLowerCase().includes(search.toLowerCase())
   );
 
-  const inStockCount = products.filter(p => p.stock > 0).length;
+  const [addedId, setAddedId] = useState(null);
+  const handleAddToCart = (product) => {
+    addToCartMutation.mutate({ product_id: product.id, quantity: 1 });
+    setAddedId(product.id);
+    setTimeout(() => setAddedId(null), 1200);
+    setActiveTab('cart');
+  };
+
+  if (!user) return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
+      <div style={{ width: 36, height: 36, border: '2px solid #16a34a', borderTopColor: 'transparent',
+        borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+    </div>
+  );
+
+  const tabs = [
+    { key: 'browse', label: 'Browse' },
+    { key: 'cart', label: `Cart${cartItems.length > 0 ? ` (${cartItems.length})` : ''}` },
+    { key: 'orders', label: 'My orders' },
+  ];
 
   return (
-    <div className="flex h-screen bg-gray-100 font-sans">
-
-      {/* ── Sidebar ── */}
-      <aside className="w-52 bg-white border-r border-gray-200 flex flex-col py-4 shrink-0">
-        <div className="px-4 mb-4 pb-4 border-b border-gray-200">
-          <p className="text-sm font-semibold text-gray-800">Quantum</p>
-          <p className="text-xs text-gray-400">Store</p>
+    <div style={{ display: 'flex', height: '100vh', background: 'var(--color-background-tertiary)', fontFamily: 'var(--font-sans)' }}>
+      {/* Sidebar */}
+      <aside style={{
+        width: 208, background: 'var(--color-background-primary)',
+        borderRight: '0.5px solid var(--color-border-tertiary)',
+        display: 'flex', flexDirection: 'column', padding: '16px 0', flexShrink: 0
+      }}>
+        <div style={{ padding: '0 16px 16px', borderBottom: '0.5px solid var(--color-border-tertiary)', marginBottom: 8 }}>
+          <p style={{ margin: 0, fontWeight: 500, fontSize: 14, color: 'var(--color-text-primary)' }}>Quantum</p>
+          <p style={{ margin: 0, fontSize: 12, color: 'var(--color-text-secondary)' }}>Store</p>
         </div>
-        <nav className="flex flex-col gap-1 flex-1 px-2">
-          <button className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-left bg-green-50 text-green-700 font-medium">
-            Browse
-          </button>
-          <button className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-left text-gray-500 hover:bg-gray-50 transition">
-            My account
-          </button>
+        <nav style={{ flex: 1, padding: '0 8px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {tabs.map(t => (
+            <button key={t.key} onClick={() => setActiveTab(t.key)}
+              style={{
+                textAlign: 'left', padding: '8px 12px', borderRadius: 8, border: 'none', cursor: 'pointer',
+                fontSize: 13, fontWeight: activeTab === t.key ? 500 : 400,
+                background: activeTab === t.key ? '#eff6ff' : 'none',
+                color: activeTab === t.key ? '#1d4ed8' : 'var(--color-text-secondary)'
+              }}>{t.label}</button>
+          ))}
         </nav>
-        <div className="px-2 mt-auto">
-          <button
-            onClick={handleLogout}
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-500 hover:bg-red-50 hover:text-red-600 transition"
-          >
-            Logout
-          </button>
+        <div style={{ padding: '0 8px' }}>
+          <button onClick={handleLogout} style={{
+            width: '100%', textAlign: 'left', padding: '8px 12px', borderRadius: 8,
+            border: 'none', cursor: 'pointer', fontSize: 13,
+            background: 'none', color: 'var(--color-text-secondary)'
+          }}>Logout</button>
         </div>
       </aside>
 
-      {/* ── Main content ── */}
-      <main className="flex-1 overflow-auto p-6">
-
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <p className="text-xs text-gray-400 mb-0.5">Welcome back</p>
-            <div className="flex items-center gap-2">
-              <h1 className="text-lg font-semibold text-gray-800">{user.full_name}</h1>
-              <span className="text-xs bg-green-100 text-green-700 font-medium px-2 py-0.5 rounded-full">
-                user
-              </span>
-            </div>
-          </div>
-          {/* Search bar — filters locally, no extra API call */}
-          <input
-            type="text"
-            placeholder="Search products..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-52 focus:outline-none focus:ring-2 focus:ring-green-400"
-          />
-        </div>
-
-        {/* Metric cards */}
-        <div className="grid grid-cols-3 gap-4 mb-6">
-          <div className="bg-white rounded-xl border border-gray-200 p-4">
-            <p className="text-xs text-gray-400 mb-1">Available products</p>
-            <p className="text-2xl font-semibold text-gray-800">{products.length}</p>
-          </div>
-          <div className="bg-white rounded-xl border border-gray-200 p-4">
-            <p className="text-xs text-gray-400 mb-1">In stock</p>
-            <p className="text-2xl font-semibold text-green-600">{inStockCount}</p>
-          </div>
-          <div className="bg-white rounded-xl border border-gray-200 p-4">
-            <p className="text-xs text-gray-400 mb-1">Out of stock</p>
-            <p className="text-2xl font-semibold text-gray-400">{products.length - inStockCount}</p>
+      {/* Main */}
+      <main style={{ flex: 1, overflowY: 'auto', padding: 24 }}>
+        <div style={{ marginBottom: 20 }}>
+          <p style={{ margin: '0 0 2px', fontSize: 12, color: 'var(--color-text-secondary)' }}>Welcome back</p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <h1 style={{ margin: 0, fontSize: 18, fontWeight: 500, color: 'var(--color-text-primary)' }}>
+              {user.full_name}
+            </h1>
+            <span style={{ fontSize: 11, background: '#dcfce7', color: '#166534',
+              padding: '2px 8px', borderRadius: 999 }}>user</span>
           </div>
         </div>
 
-        {/* Product grid — GET /products/public */}
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-gray-700">All products</h2>
-          {search && (
-            <p className="text-xs text-gray-400">{filtered.length} result{filtered.length !== 1 ? 's' : ''} for "{search}"</p>
-          )}
-        </div>
-
-        {filtered.length === 0 ? (
-          <div className="bg-white rounded-xl border border-gray-200 py-16 text-center text-sm text-gray-400">
-            {search ? `No products matching "${search}".` : 'No products available right now.'}
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filtered.map(p => (
-              <div
-                key={p.id}
-                className="bg-white rounded-xl border border-gray-200 p-4 hover:shadow-sm transition"
-              >
-                {/* Category badge */}
-                <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">
-                  {p.category?.name || 'Uncategorized'}
-                </span>
-
-                <h3 className="mt-2 text-sm font-semibold text-gray-800">{p.name}</h3>
-                <p className="text-xs text-gray-400 mt-1 mb-4 line-clamp-2">{p.description}</p>
-
-                <div className="flex items-center justify-between">
-                  <span className="text-base font-semibold text-blue-600">${p.price.toFixed(2)}</span>
-                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                    p.stock > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'
-                  }`}>
-                    {p.stock > 0 ? `${p.stock} in stock` : 'Out of stock'}
-                  </span>
+        {/* BROWSE TAB */}
+        {activeTab === 'browse' && (
+          <>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, marginBottom: 20 }}>
+              {[
+                { label: 'Available products', value: products.length, color: 'var(--color-text-primary)' },
+                { label: 'In stock', value: products.filter(p => p.stock > 0).length, color: '#16a34a' },
+                { label: 'Out of stock', value: products.filter(p => p.stock === 0).length, color: 'var(--color-text-secondary)' },
+              ].map(m => (
+                <div key={m.label} style={{
+                  background: 'var(--color-background-primary)',
+                  border: '0.5px solid var(--color-border-tertiary)',
+                  borderRadius: 10, padding: '14px 16px'
+                }}>
+                  <p style={{ margin: '0 0 4px', fontSize: 12, color: 'var(--color-text-secondary)' }}>{m.label}</p>
+                  <p style={{ margin: 0, fontSize: 22, fontWeight: 500, color: m.color }}>{m.value}</p>
                 </div>
+              ))}
+            </div>
+            <input type="text" placeholder="Search products..." value={search}
+              onChange={e => setSearch(e.target.value)}
+              style={{
+                border: '0.5px solid var(--color-border-secondary)', borderRadius: 8,
+                padding: '8px 12px', fontSize: 13, width: 240, marginBottom: 16,
+                background: 'var(--color-background-primary)', color: 'var(--color-text-primary)', outline: 'none'
+              }} />
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 14 }}>
+              {filtered.map(p => (
+                <div key={p.id} style={{
+                  background: 'var(--color-background-primary)',
+                  border: '0.5px solid var(--color-border-tertiary)',
+                  borderRadius: 12, padding: 14, display: 'flex', flexDirection: 'column', gap: 6
+                }}>
+                  <span style={{ fontSize: 11, background: 'var(--color-background-secondary)',
+                    color: 'var(--color-text-secondary)', padding: '2px 7px', borderRadius: 999, alignSelf: 'flex-start' }}>
+                    {p.category?.name || 'Uncategorized'}
+                  </span>
+                  <p style={{ margin: 0, fontSize: 13, fontWeight: 500, color: 'var(--color-text-primary)' }}>{p.name}</p>
+                  <p style={{ margin: 0, fontSize: 12, color: 'var(--color-text-secondary)', flex: 1 }}>{p.description}</p>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: 15, fontWeight: 500, color: '#2563eb' }}>${p.price.toFixed(2)}</span>
+                    <span style={{ fontSize: 11, padding: '2px 7px', borderRadius: 999,
+                      background: p.stock > 0 ? '#dcfce7' : '#fee2e2',
+                      color: p.stock > 0 ? '#166534' : '#991b1b' }}>
+                      {p.stock > 0 ? `${p.stock} in stock` : 'Out of stock'}
+                    </span>
+                  </div>
+                  <button disabled={p.stock === 0} onClick={() => handleAddToCart(p)}
+                    style={{
+                      padding: '7px 0', marginTop: 2,
+                      background: addedId === p.id ? '#16a34a' : p.stock === 0 ? 'var(--color-background-secondary)' : '#2563eb',
+                      color: p.stock === 0 ? 'var(--color-text-secondary)' : '#fff',
+                      border: 'none', borderRadius: 8, fontSize: 13, cursor: p.stock === 0 ? 'not-allowed' : 'pointer',
+                      transition: 'background 0.2s'
+                    }}>
+                    {addedId === p.id ? 'Added!' : p.stock === 0 ? 'Out of stock' : 'Add to cart'}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+
+        {/* CART TAB */}
+        {activeTab === 'cart' && (
+          <div style={{ maxWidth: 640 }}>
+            <h2 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 500, color: 'var(--color-text-primary)' }}>
+              Your cart
+            </h2>
+            {cartLoading ? (
+              <p style={{ color: 'var(--color-text-secondary)', fontSize: 14 }}>Loading cart...</p>
+            ) : cartItems.length === 0 ? (
+              <div style={{
+                background: 'var(--color-background-primary)', border: '0.5px solid var(--color-border-tertiary)',
+                borderRadius: 12, padding: '48px 0', textAlign: 'center',
+                color: 'var(--color-text-secondary)', fontSize: 14
+              }}>
+                Your cart is empty.{' '}
+                <button onClick={() => setActiveTab('browse')}
+                  style={{ background: 'none', border: 'none', color: '#2563eb', cursor: 'pointer', fontSize: 14 }}>
+                  Browse products
+                </button>
               </div>
-            ))}
+            ) : (
+              <>
+                <div style={{
+                  background: 'var(--color-background-primary)',
+                  border: '0.5px solid var(--color-border-tertiary)',
+                  borderRadius: 12, overflow: 'hidden', marginBottom: 16
+                }}>
+                  {cartItems.map((item, i) => (
+                    <div key={item.id} style={{
+                      padding: '14px 18px', display: 'flex', gap: 14, alignItems: 'center',
+                      borderTop: i > 0 ? '0.5px solid var(--color-border-tertiary)' : 'none'
+                    }}>
+                      <div style={{ flex: 1 }}>
+                        <p style={{ margin: '0 0 2px', fontSize: 14, fontWeight: 500, color: 'var(--color-text-primary)' }}>
+                          {item.product?.name}
+                        </p>
+                        <p style={{ margin: 0, fontSize: 12, color: 'var(--color-text-secondary)' }}>
+                          ${item.product?.price?.toFixed(2)} each
+                        </p>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <button onClick={() => updateCartMutation.mutate({ item_id: item.id, quantity: item.quantity - 1 })}
+                          disabled={item.quantity <= 1}
+                          style={{ width: 26, height: 26, border: '0.5px solid var(--color-border-secondary)',
+                            borderRadius: 4, background: 'none', cursor: 'pointer', color: 'var(--color-text-primary)' }}>−</button>
+                        <span style={{ fontSize: 14, minWidth: 20, textAlign: 'center', color: 'var(--color-text-primary)' }}>
+                          {item.quantity}
+                        </span>
+                        <button onClick={() => updateCartMutation.mutate({ item_id: item.id, quantity: item.quantity + 1 })}
+                          style={{ width: 26, height: 26, border: '0.5px solid var(--color-border-secondary)',
+                            borderRadius: 4, background: 'none', cursor: 'pointer', color: 'var(--color-text-primary)' }}>+</button>
+                      </div>
+                      <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--color-text-primary)', minWidth: 60, textAlign: 'right' }}>
+                        ${((item.product?.price || 0) * item.quantity).toFixed(2)}
+                      </span>
+                      <button onClick={() => removeCartMutation.mutate(item.id)}
+                        style={{ fontSize: 12, color: 'var(--color-text-danger)', background: 'none',
+                          border: 'none', cursor: 'pointer', padding: 0 }}>
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Summary */}
+                <div style={{
+                  background: 'var(--color-background-primary)',
+                  border: '0.5px solid var(--color-border-tertiary)',
+                  borderRadius: 12, padding: '16px 18px'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 14 }}>
+                    <span style={{ fontSize: 14, color: 'var(--color-text-secondary)' }}>
+                      Subtotal ({cartItems.length} item{cartItems.length !== 1 ? 's' : ''})
+                    </span>
+                    <span style={{ fontSize: 16, fontWeight: 500, color: 'var(--color-text-primary)' }}>
+                      ${cartTotal.toFixed(2)}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => checkoutMutation.mutate()}
+                    disabled={checkoutMutation.isPending}
+                    style={{
+                      width: '100%', padding: '10px 0',
+                      background: checkoutMutation.isPending ? 'var(--color-background-secondary)' : '#2563eb',
+                      color: checkoutMutation.isPending ? 'var(--color-text-secondary)' : '#fff',
+                      border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 500, cursor: 'pointer'
+                    }}>
+                    {checkoutMutation.isPending ? 'Placing order...' : 'Place order'}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* ORDERS TAB */}
+        {activeTab === 'orders' && (
+          <div style={{ maxWidth: 700 }}>
+            <h2 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 500, color: 'var(--color-text-primary)' }}>
+              My orders
+            </h2>
+            {ordersLoading ? (
+              <p style={{ color: 'var(--color-text-secondary)', fontSize: 14 }}>Loading orders...</p>
+            ) : orders.length === 0 ? (
+              <div style={{
+                background: 'var(--color-background-primary)', border: '0.5px solid var(--color-border-tertiary)',
+                borderRadius: 12, padding: '48px 0', textAlign: 'center',
+                color: 'var(--color-text-secondary)', fontSize: 14
+              }}>
+                No orders yet.
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {orders.map(order => (
+                  <div key={order.id} style={{
+                    background: 'var(--color-background-primary)',
+                    border: '0.5px solid var(--color-border-tertiary)',
+                    borderRadius: 12, overflow: 'hidden'
+                  }}>
+                    <div style={{
+                      padding: '12px 18px', borderBottom: '0.5px solid var(--color-border-tertiary)',
+                      display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+                    }}>
+                      <div>
+                        <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--color-text-primary)' }}>
+                          Order #{order.id}
+                        </span>
+                        <span style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginLeft: 10 }}>
+                          {new Date(order.created_at).toLocaleDateString()}
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <span style={{
+                          fontSize: 11, padding: '3px 8px', borderRadius: 999,
+                          background: order.status === 'confirmed' ? '#dcfce7' : '#fef9c3',
+                          color: order.status === 'confirmed' ? '#166534' : '#854d0e'
+                        }}>
+                          {order.status}
+                        </span>
+                        <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--color-text-primary)' }}>
+                          ${order.total_price.toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
+                    <div style={{ padding: '10px 18px' }}>
+                      {order.items.map(item => (
+                        <div key={item.id} style={{
+                          display: 'flex', justifyContent: 'space-between',
+                          padding: '6px 0', fontSize: 13, color: 'var(--color-text-secondary)'
+                        }}>
+                          <span>{item.product_name} × {item.quantity}</span>
+                          <span>${(item.product_price * item.quantity).toFixed(2)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </main>

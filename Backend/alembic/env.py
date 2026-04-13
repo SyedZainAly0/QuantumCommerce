@@ -12,6 +12,7 @@ sys.path.insert(0, dirname(dirname(abspath(__file__))))
 
 from Authenticationapp.models import Base  
 from Products import models
+from Cart_Orders import models
 
 config = context.config
 
