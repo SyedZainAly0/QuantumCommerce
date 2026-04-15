@@ -17,10 +17,10 @@ class Product(Base):
     description = Column(Text)
     price = Column(Float)
     stock = Column(Integer, default=0)
-    
+    image = Column(String, nullable=True) 
+
     category_id = Column(Integer, ForeignKey("categories.id", ondelete="SET NULL"), nullable=True)
-    
-    owner_id = Column(Integer, ForeignKey("users.id")) 
+    owner_id = Column(Integer, ForeignKey("users.id"))
 
     category = relationship("Category", back_populates="products")
     owner = relationship("Authenticationapp.models.User")

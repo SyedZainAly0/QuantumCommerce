@@ -2,6 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from '../services/api';
+import { BASEURL } from '../utils/Constant';
 
 const LOW_STOCK_THRESHOLD = 5;
 
@@ -24,7 +25,6 @@ const AdminHome = () => {
       return res.data;
     },
   });
-
 
   const deleteMutation = useMutation({
     mutationFn: async (id) => {
@@ -110,6 +110,7 @@ const AdminHome = () => {
                 <th className="px-5 py-3 text-left font-medium">Category</th>
                 <th className="px-5 py-3 text-left font-medium">Price</th>
                 <th className="px-5 py-3 text-left font-medium">Stock</th>
+                <th className="px-5 py-3 text-left font-medium">Image</th>
                 <th className="px-5 py-3 text-left font-medium">Actions</th>
               </tr>
             </thead>
@@ -132,14 +133,26 @@ const AdminHome = () => {
                   </td>
                   <td className="px-5 py-3">
                     <span
-                      className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                        p.stock <= LOW_STOCK_THRESHOLD
+                      className={`text-xs font-medium px-2 py-0.5 rounded-full ${p.stock <= LOW_STOCK_THRESHOLD
                           ? "bg-red-100 text-red-700"
                           : "bg-green-100 text-green-700"
-                      }`}
+                        }`}
                     >
                       {p.stock} {p.stock <= LOW_STOCK_THRESHOLD ? "⚠" : ""}
                     </span>
+                  </td>
+                  <td className="px-5 py-3">
+                    {p.image ? (
+                      <img
+                        src={`${BASEURL}${p.image}`}
+                        alt={p.name}
+                        className="h-10 w-10 object-cover rounded-lg border border-gray-200"
+                      />
+                    ) : (
+                      <div className="h-10 w-10 rounded-lg bg-gray-100 flex items-center justify-center text-gray-300 text-xs">
+                        N/A
+                      </div>
+                    )}
                   </td>
                   <td className="px-5 py-3">
                     <div className="flex gap-2">

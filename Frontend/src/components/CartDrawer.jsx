@@ -6,119 +6,114 @@ const CartDrawer = ({ open, onClose, cartHook, isLoggedIn }) => {
   const { items, removeItem, updateQty, total, clearCart } = cartHook;
 
   const handleCheckout = () => {
-    if (!isLoggedIn) {
-      onClose();
-      navigate('/login?next=checkout');
-    } else {
-      onClose();
-      navigate('/dashboard/user?tab=cart');
-    }
+    onClose();
+    navigate(isLoggedIn ? '/dashboard/user?tab=cart' : '/login?next=checkout');
   };
 
   if (!open) return null;
 
   return (
-    <div style={{
-      position: 'fixed', inset: 0, zIndex: 50,
-      display: 'flex', justifyContent: 'flex-end'
-    }}>
-      {/* backdrop */}
+    <div className="fixed inset-0 z-50 flex justify-end">
+
+     
       <div
         onClick={onClose}
-        style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.3)' }}
+        className="absolute inset-0 bg-black/30 backdrop-blur-sm"
       />
 
-      {/* drawer */}
-      <div style={{
-        position: 'relative', width: 360, maxWidth: '90vw',
-        background: 'var(--color-background-primary)',
-        borderLeft: '0.5px solid var(--color-border-tertiary)',
-        display: 'flex', flexDirection: 'column', height: '100%'
-      }}>
-        {/* header */}
-        <div style={{
-          padding: '16px 20px',
-          borderBottom: '0.5px solid var(--color-border-tertiary)',
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center'
-        }}>
-          <span style={{ fontWeight: 500, fontSize: 15, color: 'var(--color-text-primary)' }}>
-            Cart ({items.length})
+   
+      <div className="relative flex flex-col w-[360px] max-w-[90vw] h-full bg-white dark:bg-neutral-900 border-l border-neutral-200 dark:border-neutral-700 shadow-xl">
+
+        <div className="flex items-center justify-between px-5 py-4 border-b border-neutral-200 dark:border-neutral-700">
+          <span className="text-sm font-semibold text-neutral-800 dark:text-neutral-100 tracking-wide">
+            Cart
+            <span className="ml-2 text-xs font-medium text-neutral-400 dark:text-neutral-500">
+              ({items.length} {items.length === 1 ? 'item' : 'items'})
+            </span>
           </span>
-          <button onClick={onClose} style={{
-            background: 'none', border: 'none', cursor: 'pointer',
-            fontSize: 20, color: 'var(--color-text-secondary)', lineHeight: 1
-          }}>×</button>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 flex items-center justify-center rounded-full text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors text-xl leading-none"
+          >
+            ×
+          </button>
         </div>
 
-        {/* items */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '12px 20px' }}>
+     
+        <div className="flex-1 overflow-y-auto px-5 py-3 divide-y divide-neutral-100 dark:divide-neutral-800">
           {items.length === 0 ? (
-            <p style={{ color: 'var(--color-text-secondary)', fontSize: 14, textAlign: 'center', marginTop: 40 }}>
-              Your cart is empty.
-            </p>
-          ) : items.map(item => (
-            <div key={item.product_id} style={{
-              display: 'flex', gap: 12, padding: '12px 0',
-              borderBottom: '0.5px solid var(--color-border-tertiary)'
-            }}>
-              <div style={{ flex: 1 }}>
-                <p style={{ margin: 0, fontSize: 14, fontWeight: 500, color: 'var(--color-text-primary)' }}>
-                  {item.product.name}
-                </p>
-                <p style={{ margin: '2px 0 8px', fontSize: 13, color: 'var(--color-text-secondary)' }}>
-                  ${item.product.price.toFixed(2)} each
-                </p>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <button onClick={() => updateQty(item.product_id, item.quantity - 1)}
-                    style={{ width: 24, height: 24, border: '0.5px solid var(--color-border-secondary)',
-                      borderRadius: 4, background: 'none', cursor: 'pointer',
-                      color: 'var(--color-text-primary)', fontSize: 14 }}>−</button>
-                  <span style={{ fontSize: 13, minWidth: 20, textAlign: 'center',
-                    color: 'var(--color-text-primary)' }}>{item.quantity}</span>
-                  <button onClick={() => updateQty(item.product_id, item.quantity + 1)}
-                    style={{ width: 24, height: 24, border: '0.5px solid var(--color-border-secondary)',
-                      borderRadius: 4, background: 'none', cursor: 'pointer',
-                      color: 'var(--color-text-primary)', fontSize: 14 }}>+</button>
+            <div className="flex flex-col items-center justify-center h-full py-16 text-center">
+              <div className="text-4xl mb-3">🛒</div>
+              <p className="text-sm text-neutral-400 dark:text-neutral-500">Your cart is empty.</p>
+            </div>
+          ) : (
+            items.map(item => (
+              <div key={item.product_id} className="flex gap-3 py-4">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-neutral-800 dark:text-neutral-100 truncate">
+                    {item.product.name}
+                  </p>
+                  <p className="text-xs text-neutral-400 dark:text-neutral-500 mt-0.5 mb-3">
+                    ${item.product.price.toFixed(2)} each
+                  </p>
+
+                
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => updateQty(item.product_id, item.quantity - 1)}
+                      className="w-7 h-7 flex items-center justify-center rounded-md border border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors text-base leading-none"
+                    >
+                      −
+                    </button>
+                    <span className="text-sm font-medium text-neutral-700 dark:text-neutral-200 min-w-[20px] text-center">
+                      {item.quantity}
+                    </span>
+                    <button
+                      onClick={() => updateQty(item.product_id, item.quantity + 1)}
+                      className="w-7 h-7 flex items-center justify-center rounded-md border border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors text-base leading-none"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+
+           
+                <div className="flex flex-col items-end justify-between">
+                  <span className="text-sm font-semibold text-neutral-800 dark:text-neutral-100">
+                    ${(item.product.price * item.quantity).toFixed(2)}
+                  </span>
+                  <button
+                    onClick={() => removeItem(item.product_id)}
+                    className="text-xs text-red-400 hover:text-red-600 transition-colors"
+                  >
+                    Remove
+                  </button>
                 </div>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
-                <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--color-text-primary)' }}>
-                  ${(item.product.price * item.quantity).toFixed(2)}
-                </span>
-                <button onClick={() => removeItem(item.product_id)}
-                  style={{ fontSize: 12, color: 'var(--color-text-danger)',
-                    background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
-                  Remove
-                </button>
-              </div>
-            </div>
-          ))}
+            ))
+          )}
         </div>
 
-        {/* footer */}
         {items.length > 0 && (
-          <div style={{
-            padding: '16px 20px',
-            borderTop: '0.5px solid var(--color-border-tertiary)'
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 14 }}>
-              <span style={{ fontSize: 14, color: 'var(--color-text-secondary)' }}>Subtotal</span>
-              <span style={{ fontSize: 15, fontWeight: 500, color: 'var(--color-text-primary)' }}>
+          <div className="px-5 py-4 border-t border-neutral-200 dark:border-neutral-700 space-y-3 bg-white dark:bg-neutral-900">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-neutral-500 dark:text-neutral-400">Subtotal</span>
+              <span className="text-base font-semibold text-neutral-800 dark:text-neutral-100">
                 ${total.toFixed(2)}
               </span>
             </div>
-            <button onClick={handleCheckout} style={{
-              width: '100%', padding: '10px 0',
-              background: '#2563eb', color: '#fff', border: 'none',
-              borderRadius: 8, fontSize: 14, fontWeight: 500, cursor: 'pointer'
-            }}>
+
+            <button
+              onClick={handleCheckout}
+              className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-sm font-medium rounded-lg transition-colors"
+            >
               {isLoggedIn ? 'Go to checkout' : 'Login to checkout'}
             </button>
-            <button onClick={clearCart} style={{
-              width: '100%', padding: '8px 0', marginTop: 8,
-              background: 'none', border: '0.5px solid var(--color-border-secondary)',
-              borderRadius: 8, fontSize: 13, color: 'var(--color-text-secondary)', cursor: 'pointer'
-            }}>
+
+            <button
+              onClick={clearCart}
+              className="w-full py-2 text-sm text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 border border-neutral-200 dark:border-neutral-700 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
+            >
               Clear cart
             </button>
           </div>

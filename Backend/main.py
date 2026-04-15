@@ -7,8 +7,12 @@ from Products.routes import router as product_router
 from Cart_Orders.routes import router as cart_router, orders_router  # ← add this
 
 app = FastAPI()
+from fastapi.staticfiles import StaticFiles
+
+app.mount("/media", StaticFiles(directory="media"), name="media")
 
 origins = ["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:3000"]
+
 
 app.add_middleware(
     CORSMiddleware,

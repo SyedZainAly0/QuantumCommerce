@@ -14,7 +14,6 @@ def get_cart(
     db: Session = Depends(get_db),
     current_user: auth_models.User = Depends(get_current_user)
 ):
-    """Return all cart items for the logged-in user."""
     return (
         db.query(models.CartItem)
         .filter(models.CartItem.user_id == current_user.id)
@@ -28,7 +27,7 @@ def add_to_cart(
     db: Session = Depends(get_db),
     current_user: auth_models.User = Depends(get_current_user)
 ):
-    """Add a product to cart. If it already exists, increment quantity."""
+    
     product = db.query(Product).filter(Product.id == item.product_id).first()
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
@@ -68,7 +67,6 @@ def update_cart_item(
     db: Session = Depends(get_db),
     current_user: auth_models.User = Depends(get_current_user)
 ):
-    """Update quantity of a specific cart item."""
     cart_item = (
         db.query(models.CartItem)
         .filter(
@@ -203,7 +201,6 @@ def get_my_orders(
     db: Session = Depends(get_db),
     current_user: auth_models.User = Depends(get_current_user)
 ):
-    """Return all orders for the logged-in user, newest first."""
     return (
         db.query(models.Order)
         .filter(models.Order.user_id == current_user.id)
