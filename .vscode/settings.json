@@ -1,4 +1,6 @@
 {
     "python-envs.defaultEnvManager": "ms-python.python:system",
-    "python-envs.pythonProjects": []
+    "python-envs.pythonProjects": [],
+    "python.defaultInterpreterPath": "/home/dev/Desktop/QuantumCommerce/Backend/myvenv/bin/python",
+    "python.pythonPath": "Backend/myvenv/bin/python"
 }

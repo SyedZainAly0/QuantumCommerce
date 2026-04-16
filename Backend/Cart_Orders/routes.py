@@ -5,6 +5,9 @@ from Authenticationapp import models as auth_models
 from Authenticationapp.oauth2 import get_current_user
 from Cart_Orders import models, schemas
 from Products.models import Product
+from fastapi import BackgroundTasks
+from utils.email_service import send_order_email
+
 
 router = APIRouter(prefix="/cart", tags=["Cart & Orders"])
 
@@ -125,18 +128,12 @@ def clear_cart(
 
 orders_router = APIRouter(prefix="/orders", tags=["Orders"])
 
-
 @orders_router.post("/checkout", response_model=schemas.OrderOut, status_code=status.HTTP_201_CREATED)
 def checkout(
+    background_tasks: BackgroundTasks, 
     db: Session = Depends(get_db),
     current_user: auth_models.User = Depends(get_current_user)
 ):
-    """
-    Convert cart → order.
-    - Deducts stock from each product.
-    - Snapshots product name + price on each OrderItem.
-    - Clears the cart on success.
-    """
     cart_items = (
         db.query(models.CartItem)
         .filter(models.CartItem.user_id == current_user.id)
@@ -180,19 +177,26 @@ def checkout(
         status="confirmed"
     )
     db.add(order)
-    db.flush()   # get order.id before adding items
+    db.flush()
 
     for oi in order_items:
         oi.order_id = order.id
         db.add(oi)
 
-    # clear cart
     db.query(models.CartItem).filter(
         models.CartItem.user_id == current_user.id
     ).delete()
 
     db.commit()
     db.refresh(order)
+
+    background_tasks.add_task(
+        send_order_email,
+        current_user.email,
+        order.id,
+        order.total_price
+    )
+
     return order
 
 
@@ -215,7 +219,6 @@ def get_order_detail(
     db: Session = Depends(get_db),
     current_user: auth_models.User = Depends(get_current_user)
 ):
-    """Return a single order's detail (only if it belongs to the current user)."""
     order = (
         db.query(models.Order)
         .filter(
