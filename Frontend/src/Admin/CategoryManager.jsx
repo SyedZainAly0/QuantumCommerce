@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState,useEffect } from 'react';
 import api from '../services/api';
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
@@ -56,7 +56,7 @@ const CategoryManager = () => {
     deleteCategoryMutation.mutate({ id, name });
   };
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (msg) {
       const timer = setTimeout(() => setMsg(''), 3000);
       return () => clearTimeout(timer);

@@ -168,7 +168,7 @@ const AdminHome = () => {
                         onClick={() =>
                           handleDelete(p.id, p.name)
                         }
-                        className="text-xs border border-red-100 text-red-600 px-3 py-1 rounded-lg hover:bg-red-50 transition"
+                        className="text-xs border 1234567890border-red-100 text-red-600 px-3 py-1 rounded-lg hover:bg-red-50 transition"
                       >
                         Delete
                       </button>

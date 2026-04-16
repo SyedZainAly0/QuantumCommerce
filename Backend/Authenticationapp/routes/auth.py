@@ -1,3 +1,7 @@
+from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
+from Authenticationapp import models, schemas
+from ..database import get_db
 from fastapi import APIRouter, Depends, HTTPException, status, Response
 from sqlalchemy.orm import Session
 from .. import crud, models, schemas, utils, oauth2 
@@ -53,3 +57,20 @@ def get_me(current_user: models.User = Depends(oauth2.get_current_user)):
 def logout(response: Response):
     response.delete_cookie(key="access_token")
     return {"message": "Successfully logged out"}
+    
+
+@router.post("/register1")
+async def register_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
+    
+    new_user = models.User(
+        email=user.email,
+        password=user.password
+    )
+
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+
+    await send_email(user.email)
+
+    return {"message": "User created and email sent"}

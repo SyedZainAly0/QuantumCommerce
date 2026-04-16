@@ -16,7 +16,6 @@ class CartItem(Base):
     user = relationship("Authenticationapp.models.User")
     product = relationship("Products.models.Product")
 
-
 class Order(Base):
     __tablename__ = "orders"
 
