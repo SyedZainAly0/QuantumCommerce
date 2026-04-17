@@ -119,10 +119,6 @@ def clear_cart(
     db.commit()
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-#  ORDER ENDPOINTS
-# ══════════════════════════════════════════════════════════════════════════════
-
 orders_router = APIRouter(prefix="/orders", tags=["Orders"])
 
 
@@ -177,7 +173,8 @@ def checkout(
     order = models.Order(
         user_id=current_user.id,
         total_price=round(total, 2),
-        status="confirmed"
+        status="confirmed",
+        Message="Order confirmation mail, has sent"
     )
     db.add(order)
     db.flush()   # get order.id before adding items

@@ -40,6 +40,7 @@ class OrderOut(BaseModel):
     status: str
     created_at: datetime
     items: list[OrderItemOut] = []
+    Message: Optional[str] = None
 
     class Config:
         from_attributes = True

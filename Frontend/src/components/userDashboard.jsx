@@ -267,7 +267,7 @@ const UserDashboard = () => {
                     </div>
                   ))}
                 </div>
-                
+
                 <div className="mt-4 bg-white border rounded-xl p-4 space-y-2">
                   <div className="flex justify-between text-sm text-gray-600">
                     <span>Subtotal</span>
@@ -320,6 +320,9 @@ const UserDashboard = () => {
                     </div>
                     <p className="text-xs text-gray-500">
                       Status: {order.status}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      Message: {order.Message}
                     </p>
                   </div>
                 ))}

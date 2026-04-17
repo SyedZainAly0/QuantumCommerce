@@ -24,7 +24,7 @@ class Order(Base):
     total_price = Column(Float)
     status = Column(String, default="pending")  
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-
+    Message = Column(String)
     user = relationship("Authenticationapp.models.User")
     items = relationship("OrderItem", back_populates="order", cascade="all, delete")
 
