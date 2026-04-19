@@ -20,7 +20,6 @@ def get_cart(
         .all()
     )
 
-
 @router.post("/", response_model=schemas.CartItemOut, status_code=status.HTTP_201_CREATED)
 def add_to_cart(
     item: schemas.CartItemAdd,
@@ -92,7 +91,7 @@ def remove_from_cart(
     db: Session = Depends(get_db),
     current_user: auth_models.User = Depends(get_current_user)
 ):
-    """Remove a single item from the cart."""
+
     cart_item = (
         db.query(models.CartItem)
         .filter(
@@ -112,7 +111,6 @@ def clear_cart(
     db: Session = Depends(get_db),
     current_user: auth_models.User = Depends(get_current_user)
 ):
-    """Clear the entire cart for the current user."""
     db.query(models.CartItem).filter(
         models.CartItem.user_id == current_user.id
     ).delete()
@@ -127,12 +125,7 @@ def checkout(
     db: Session = Depends(get_db),
     current_user: auth_models.User = Depends(get_current_user)
 ):
-    """
-    Convert cart → order.
-    - Deducts stock from each product.
-    - Snapshots product name + price on each OrderItem.
-    - Clears the cart on success.
-    """
+
     cart_items = (
         db.query(models.CartItem)
         .filter(models.CartItem.user_id == current_user.id)

@@ -9,7 +9,7 @@ const UserDashboard = () => {
   const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const [loadingItemId, setLoadingItemId] = useState(null);
-
+  const [checkoutError, setCheckoutError] = useState(null);
   const tab = searchParams.get('tab');
   const [activeTab, setActiveTab] = useState(
     tab === 'orders' ? 'orders' : 'cart'
@@ -47,10 +47,16 @@ const UserDashboard = () => {
 
       try {
         for (const item of guestCart.items) {
-          await api.post('/cart/', {
-            product_id: item.product_id,
-            quantity: item.quantity,
-          });
+          if (item.quantity === 0) continue;
+
+          try {
+            await api.post('/cart/', {
+              product_id: item.product_id,
+              quantity: item.quantity,
+            });
+          } catch (itemError) {
+            console.warn(`Skipped syncing "${item.product?.name}": ${itemError?.response?.data?.detail}`);
+          }
         }
         guestCart.clearCart();
         queryClient.invalidateQueries(['cart']);
@@ -107,10 +113,15 @@ const UserDashboard = () => {
   const checkoutMutation = useMutation({
     mutationFn: async () => (await api.post('/orders/checkout')).data,
     onSuccess: () => {
+      setCheckoutError(null);
       queryClient.invalidateQueries(['cart']);
       queryClient.invalidateQueries(['orders']);
       setActiveTab('orders');
       navigate('?tab=orders');
+    },
+    onError: (error) => {
+      const message = error?.response?.data?.detail || 'Checkout failed. Please try again.';
+      setCheckoutError(message);
     },
   });
 
@@ -284,11 +295,23 @@ const UserDashboard = () => {
                     <span>${total.toFixed(2)}</span>
                   </div>
 
+                  {checkoutError && (
+                    <div className="flex items-start gap-2 bg-red-50 border border-red-200 text-red-600 text-sm rounded-lg px-3 py-2">
+                      <span>⚠</span>
+                      <span>{checkoutError}</span>
+                    </div>
+                  )}
+
                   <button
-                    onClick={() => checkoutMutation.mutate()}
-                    className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 mt-3"
+                    onClick={() => {
+                      setCheckoutError(null);
+                      checkoutMutation.mutate();
+                    }}
+                    disabled={checkoutMutation.isLoading}
+                    className={`w-full py-2 rounded-lg mt-3 text-white font-medium transition
+    ${checkoutMutation.isLoading ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
                   >
-                    Checkout
+                    {checkoutMutation.isLoading ? 'Placing Order...' : 'Checkout'}
                   </button>
                 </div>
               </>

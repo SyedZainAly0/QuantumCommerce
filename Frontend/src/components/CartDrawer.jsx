@@ -6,6 +6,7 @@ const CartDrawer = ({ open, onClose, cartHook, isLoggedIn }) => {
   const { items, removeItem, updateQty, total, clearCart } = cartHook;
 
   const handleCheckout = () => {
+
     onClose();
     navigate(isLoggedIn ? '/dashboard/user?tab=cart' : '/login?next=checkout');
   };
@@ -15,13 +16,13 @@ const CartDrawer = ({ open, onClose, cartHook, isLoggedIn }) => {
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
 
-     
+
       <div
         onClick={onClose}
         className="absolute inset-0 bg-black/30 backdrop-blur-sm"
       />
 
-   
+
       <div className="relative flex flex-col w-[360px] max-w-[90vw] h-full bg-white dark:bg-neutral-900 border-l border-neutral-200 dark:border-neutral-700 shadow-xl">
 
         <div className="flex items-center justify-between px-5 py-4 border-b border-neutral-200 dark:border-neutral-700">
@@ -39,7 +40,7 @@ const CartDrawer = ({ open, onClose, cartHook, isLoggedIn }) => {
           </button>
         </div>
 
-     
+
         <div className="flex-1 overflow-y-auto px-5 py-3 divide-y divide-neutral-100 dark:divide-neutral-800">
           {items.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full py-16 text-center">
@@ -48,6 +49,7 @@ const CartDrawer = ({ open, onClose, cartHook, isLoggedIn }) => {
             </div>
           ) : (
             items.map(item => (
+              console.log(item),
               <div key={item.product_id} className="flex gap-3 py-4">
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-neutral-800 dark:text-neutral-100 truncate">
@@ -57,7 +59,7 @@ const CartDrawer = ({ open, onClose, cartHook, isLoggedIn }) => {
                     ${item.product.price.toFixed(2)} each
                   </p>
 
-                
+
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => updateQty(item.product_id, item.quantity - 1)}
@@ -77,7 +79,7 @@ const CartDrawer = ({ open, onClose, cartHook, isLoggedIn }) => {
                   </div>
                 </div>
 
-           
+
                 <div className="flex flex-col items-end justify-between">
                   <span className="text-sm font-semibold text-neutral-800 dark:text-neutral-100">
                     ${(item.product.price * item.quantity).toFixed(2)}

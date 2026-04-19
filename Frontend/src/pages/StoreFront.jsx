@@ -64,7 +64,7 @@ const StoreFront = () => {
   return (
     <div className="min-h-screen bg-white">
       <nav className="sticky top-0 z-40 bg-white/70 backdrop-blur-md border-b border-gray-200 px-8 h-16 flex items-center justify-between">
-      
+
         <div onClick={() => navigate('/')}
           className="flex items-center gap-2 cursor-pointer group"
         >
@@ -108,7 +108,7 @@ const StoreFront = () => {
               </button>
             </>
           )}
-          
+
           <button
             onClick={() => setCartOpen(true)}
             className="relative flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg border border-gray-200 hover:border-gray-300 hover:bg-white transition"
@@ -124,7 +124,7 @@ const StoreFront = () => {
 
         </div>
       </nav>
-      
+
       <div className="max-w-7xl mx-auto px-8 py-6 flex gap-4">
         <input
           type="text"
@@ -170,7 +170,7 @@ const StoreFront = () => {
                 <div className="aspect-square bg-gray-100 rounded-xl overflow-hidden mb-3">
                   {p.image ? (
                     <img
-                      src={`${BASEURL}${p.image}`} 
+                      src={`${BASEURL}${p.image}`}
                       alt={p.name}
                       className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
                     />
@@ -188,6 +188,10 @@ const StoreFront = () => {
 
                 <p className="text-sm text-gray-500">
                   ${p.price.toFixed(2)}
+                </p>
+
+                <p className="text-sm text-gray-500">
+                  Items-left: {p.stock == 0 ? 'Out of Stock' : p.stock}
                 </p>
 
                 {/* ACTION */}
