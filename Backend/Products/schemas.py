@@ -19,13 +19,17 @@ class ProductBase(BaseModel):
     description: str
     price: float
     stock: int
-    category_id: int
+    category_id: Optional[int] = None
+    image: Optional[str] = None  
 
 class ProductCreate(ProductBase):
-    pass
+    pass  
 
 class ProductOut(ProductBase):
     id: int
-    category: CategoryOut
+    category_id: Optional[int] = None
+    category: Optional[CategoryOut] = None
+    image: Optional[str] = None
+
     class Config:
         from_attributes = True

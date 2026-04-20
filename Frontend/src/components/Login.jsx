@@ -11,7 +11,6 @@ const Login = () => {
     e.preventDefault();
     try {
       const res = await api.post('/auth/login', { email, password });
-      // Redirect based on role returned from the API
       navigate(res.data.role === 'admin' ? '/dashboard/admin' : '/dashboard/user');
     } catch {
       alert('Invalid credentials');

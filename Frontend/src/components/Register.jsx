@@ -4,11 +4,11 @@ import { useNavigate, Link } from 'react-router-dom';
 
 const Register = () => {
   const [form, setForm] = useState(
-    { 
+    {
       full_name: '',
-      email: '', 
-      password: '', 
-      role: 'user' 
+      email: '',
+      password: '',
+      role: 'user'
     });
   const navigate = useNavigate();
 
@@ -16,7 +16,6 @@ const Register = () => {
     e.preventDefault();
     try {
       await api.post('/auth/register', form);
-      // Auto-login so we can redirect by role immediately
       const res = await api.post('/auth/login', { email: form.email, password: form.password });
       navigate(res.data.role === 'admin' ? '/dashboard/admin' : '/dashboard/user');
     } catch (err) {

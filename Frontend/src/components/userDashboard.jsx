@@ -1,149 +1,346 @@
 import React, { useEffect, useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../services/api';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useCart } from '../hooks/useCart';
 
 const UserDashboard = () => {
-  const [user, setUser] = useState(null);
-  const [products, setProducts] = useState([]);
-  const [search, setSearch] = useState('');
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const queryClient = useQueryClient();
+  const [loadingItemId, setLoadingItemId] = useState(null);
+  const [checkoutError, setCheckoutError] = useState(null);
+  const tab = searchParams.get('tab');
+  const [activeTab, setActiveTab] = useState(
+    tab === 'orders' ? 'orders' : 'cart'
+  );
+
+  const guestCart = useCart();
+
+  const { data: user } = useQuery({
+    queryKey: ['me'],
+    queryFn: async () => (await api.get('/auth/me')).data,
+    retry: false,
+    onError: () => navigate('/login'),
+  });
+
+  const { data: cartItems = [], isLoading: cartLoading } = useQuery({
+    queryKey: ['cart'],
+    queryFn: async () => (await api.get('/cart/')).data,
+    enabled: activeTab === 'cart',
+    select: (data) => [...data].sort((a, b) => a.id - b.id),
+  });
+
+  const { data: orders = [], isLoading: ordersLoading } = useQuery({
+    queryKey: ['orders'],
+    queryFn: async () => (await api.get('/orders/')).data,
+    enabled: activeTab === 'orders',
+  });
 
   useEffect(() => {
-    const init = async () => {
+    const syncCart = async () => {
+      if (guestCart.items.length === 0) return;
+
       try {
-        const res = await api.get('/auth/me');
-        if (res.data.role === 'admin') { navigate('/dashboard/admin'); return; }
-        setUser(res.data);
-        // GET /products/public — all products visible to users
-        const prodRes = await api.get('/products/public');
-        setProducts(prodRes.data);
-      } catch { navigate('/login'); }
+        for (const item of guestCart.items) {
+          if (item.quantity === 0) continue;
+
+          try {
+            await api.post('/cart/', {
+              product_id: item.product_id,
+              quantity: item.quantity,
+            });
+          } catch (itemError) {
+            console.warn(`Skipped syncing "${item.product?.name}": ${itemError?.response?.data?.detail}`);
+          }
+        }
+        guestCart.clearCart();
+        queryClient.invalidateQueries(['cart']);
+      } catch (e) {
+        console.error('Cart sync failed', e);
+      }
     };
-    init();
-  }, [navigate]);
+    syncCart();
+  }, []);
+
+
+  const updateCartMutation = useMutation({
+    mutationFn: async ({ item_id, quantity }) =>
+      (await api.put(`/cart/${item_id}`, { quantity })).data,
+
+    onMutate: async ({ item_id, quantity }) => {
+
+      await queryClient.cancelQueries(['cart']);
+
+
+      const previous = queryClient.getQueryData(['cart']);
+
+      queryClient.setQueryData(['cart'], (old) =>
+        old.map((item) =>
+          item.id === item_id ? { ...item, quantity } : item
+        )
+      );
+
+      return { previous };
+    },
+
+    onError: (_err, _vars, context) => {
+      queryClient.setQueryData(['cart'], context.previous);
+      setLoadingItemId(null);
+    },
+
+    onSettled: () => {
+      queryClient.invalidateQueries(['cart']);
+      setLoadingItemId(null);
+    },
+  });
+
+
+  const removeCartMutation = useMutation({
+    mutationFn: async (id) => api.delete(`/cart/${id}`),
+    onSuccess: () => queryClient.invalidateQueries(['cart']),
+  });
+
+  const checkoutMutation = useMutation({
+    mutationFn: async () => (await api.post('/orders/checkout')).data,
+    onSuccess: () => {
+      setCheckoutError(null);
+      queryClient.invalidateQueries(['cart']);
+      queryClient.invalidateQueries(['orders']);
+      setActiveTab('orders');
+      navigate('?tab=orders');
+    },
+    onError: (error) => {
+      const message = error?.response?.data?.detail || 'Checkout failed. Please try again.';
+      setCheckoutError(message);
+    },
+  });
 
   const handleLogout = async () => {
     await api.post('/auth/logout');
     navigate('/login');
   };
 
-  if (!user) return (
-    <div className="flex items-center justify-center h-screen">
-      <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-green-600" />
-    </div>
+  const subtotal = cartItems.reduce(
+    (sum, i) => sum + (i.product?.price || 0) * i.quantity,
+    0
   );
+  const tax = subtotal * 0.10;
+  const total = subtotal + tax;
 
-  const filtered = products.filter(p =>
-    p.name.toLowerCase().includes(search.toLowerCase()) ||
-    (p.category?.name || '').toLowerCase().includes(search.toLowerCase())
-  );
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+    navigate(`?tab=${tab}`);
+  };
 
-  const inStockCount = products.filter(p => p.stock > 0).length;
+  if (!user) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="w-8 h-8 border-2 border-green-500 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
+  const tabs = [
+    { key: 'cart', label: `Cart (${cartItems.length})` },
+    { key: 'orders', label: 'Orders' },
+  ];
 
   return (
-    <div className="flex h-screen bg-gray-100 font-sans">
+    <div className="flex h-screen bg-gray-50">
 
-      {/* ── Sidebar ── */}
-      <aside className="w-52 bg-white border-r border-gray-200 flex flex-col py-4 shrink-0">
-        <div className="px-4 mb-4 pb-4 border-b border-gray-200">
-          <p className="text-sm font-semibold text-gray-800">Quantum</p>
-          <p className="text-xs text-gray-400">Store</p>
+      {/* SIDEBAR */}
+      <aside className="w-56 bg-white border-r p-4 flex flex-col">
+        <h2 className="text-lg font-semibold mb-6">Dashboard</h2>
+
+        <div className="flex flex-col gap-2 flex-1">
+          {tabs.map((t) => (
+            <button
+              key={t.key}
+              onClick={() => handleTabChange(t.key)}
+              className={`text-left px-3 py-2 rounded-lg text-sm transition
+                ${activeTab === t.key
+                  ? 'bg-blue-100 text-blue-700 font-medium'
+                  : 'text-gray-600 hover:bg-gray-100'
+                }`}
+            >
+              {t.label}
+            </button>
+          ))}
         </div>
-        <nav className="flex flex-col gap-1 flex-1 px-2">
-          <button className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-left bg-green-50 text-green-700 font-medium">
-            Browse
-          </button>
-          <button className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-left text-gray-500 hover:bg-gray-50 transition">
-            My account
-          </button>
-        </nav>
-        <div className="px-2 mt-auto">
-          <button
-            onClick={handleLogout}
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-500 hover:bg-red-50 hover:text-red-600 transition"
-          >
-            Logout
-          </button>
-        </div>
+
+        <button
+          onClick={handleLogout}
+          className="mt-4 text-sm text-gray-500 hover:text-red-500"
+        >
+          Logout
+        </button>
+
+        <button
+          onClick={() => navigate('/')}
+          className="ml-2 text-blue-600 hover:underline"
+        >
+          Go to store
+        </button>
       </aside>
 
-      {/* ── Main content ── */}
-      <main className="flex-1 overflow-auto p-6">
+      {/* MAIN */}
+      <main className="flex-1 overflow-y-auto p-6">
 
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <p className="text-xs text-gray-400 mb-0.5">Welcome back</p>
-            <div className="flex items-center gap-2">
-              <h1 className="text-lg font-semibold text-gray-800">{user.full_name}</h1>
-              <span className="text-xs bg-green-100 text-green-700 font-medium px-2 py-0.5 rounded-full">
-                user
-              </span>
-            </div>
-          </div>
-          {/* Search bar — filters locally, no extra API call */}
-          <input
-            type="text"
-            placeholder="Search products..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-52 focus:outline-none focus:ring-2 focus:ring-green-400"
-          />
+        {/* HEADER */}
+        <div className="mb-6">
+          <p className="text-sm text-gray-500">Welcome back</p>
+          <h1 className="text-lg font-semibold">{user.full_name}</h1>
         </div>
 
-        {/* Metric cards */}
-        <div className="grid grid-cols-3 gap-4 mb-6">
-          <div className="bg-white rounded-xl border border-gray-200 p-4">
-            <p className="text-xs text-gray-400 mb-1">Available products</p>
-            <p className="text-2xl font-semibold text-gray-800">{products.length}</p>
-          </div>
-          <div className="bg-white rounded-xl border border-gray-200 p-4">
-            <p className="text-xs text-gray-400 mb-1">In stock</p>
-            <p className="text-2xl font-semibold text-green-600">{inStockCount}</p>
-          </div>
-          <div className="bg-white rounded-xl border border-gray-200 p-4">
-            <p className="text-xs text-gray-400 mb-1">Out of stock</p>
-            <p className="text-2xl font-semibold text-gray-400">{products.length - inStockCount}</p>
-          </div>
-        </div>
+        {/* CART */}
+        {activeTab === 'cart' && (
+          <div className="max-w-2xl">
+            <h2 className="text-md font-semibold mb-4">Your Cart</h2>
 
-        {/* Product grid — GET /products/public */}
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-gray-700">All products</h2>
-          {search && (
-            <p className="text-xs text-gray-400">{filtered.length} result{filtered.length !== 1 ? 's' : ''} for "{search}"</p>
-          )}
-        </div>
-
-        {filtered.length === 0 ? (
-          <div className="bg-white rounded-xl border border-gray-200 py-16 text-center text-sm text-gray-400">
-            {search ? `No products matching "${search}".` : 'No products available right now.'}
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filtered.map(p => (
-              <div
-                key={p.id}
-                className="bg-white rounded-xl border border-gray-200 p-4 hover:shadow-sm transition"
-              >
-                {/* Category badge */}
-                <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">
-                  {p.category?.name || 'Uncategorized'}
-                </span>
-
-                <h3 className="mt-2 text-sm font-semibold text-gray-800">{p.name}</h3>
-                <p className="text-xs text-gray-400 mt-1 mb-4 line-clamp-2">{p.description}</p>
-
-                <div className="flex items-center justify-between">
-                  <span className="text-base font-semibold text-blue-600">${p.price.toFixed(2)}</span>
-                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                    p.stock > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'
-                  }`}>
-                    {p.stock > 0 ? `${p.stock} in stock` : 'Out of stock'}
-                  </span>
-                </div>
+            {cartLoading ? (
+              <p className="text-gray-500">Loading...</p>
+            ) : cartItems.length === 0 ? (
+              <div className="bg-white border rounded-xl p-8 text-center text-gray-500">
+                Cart is empty
+                <button
+                  onClick={() => navigate('/')}
+                  className="ml-2 text-blue-600 hover:underline"
+                >
+                  Go to store
+                </button>
               </div>
-            ))}
+            ) : (
+              <>
+                {/* CART ITEMS */}
+                <div className="bg-white border rounded-xl divide-y">
+                  {cartItems.map((item) => (
+                    <div key={item.id} className="flex items-center p-4 gap-4">
+                      <div className="flex-1">
+                        <p className="font-medium text-sm">
+                          {item.product?.name}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          ${item.product?.price}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          disabled={loadingItemId === item.id}
+                          onClick={() => {
+                            setLoadingItemId(item.id);
+                            updateCartMutation.mutate({
+                              item_id: item.id,
+                              quantity: item.quantity - 1,
+                            });
+                          }}
+                          className="px-2 border rounded disabled:opacity-40"
+                        >
+                          -
+                        </button>
+
+                        <span>
+                          {loadingItemId === item.id ? '...' : item.quantity}
+                        </span>
+
+                        <button
+                          disabled={loadingItemId === item.id}
+                          onClick={() => {
+                            setLoadingItemId(item.id);
+                            updateCartMutation.mutate({
+                              item_id: item.id,
+                              quantity: item.quantity + 1,
+                            });
+                          }}
+                          className="px-2 border rounded disabled:opacity-40"
+                        >
+                          +
+                        </button>
+                      </div>
+
+                      <button
+                        onClick={() => removeCartMutation.mutate(item.id)}
+                        className="text-xs text-red-500"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-4 bg-white border rounded-xl p-4 space-y-2">
+                  <div className="flex justify-between text-sm text-gray-600">
+                    <span>Subtotal</span>
+                    <span>${subtotal.toFixed(2)}</span>
+                  </div>
+
+                  <div className="flex justify-between text-sm text-gray-600">
+                    <span>Tax (10%)</span>
+                    <span>${tax.toFixed(2)}</span>
+                  </div>
+
+                  <div className="flex justify-between font-semibold text-lg border-t pt-2">
+                    <span>Total</span>
+                    <span>${total.toFixed(2)}</span>
+                  </div>
+
+                  {checkoutError && (
+                    <div className="flex items-start gap-2 bg-red-50 border border-red-200 text-red-600 text-sm rounded-lg px-3 py-2">
+                      <span>⚠</span>
+                      <span>{checkoutError}</span>
+                    </div>
+                  )}
+
+                  <button
+                    onClick={() => {
+                      setCheckoutError(null);
+                      checkoutMutation.mutate();
+                    }}
+                    disabled={checkoutMutation.isLoading}
+                    className={`w-full py-2 rounded-lg mt-3 text-white font-medium transition
+    ${checkoutMutation.isLoading ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
+                  >
+                    {checkoutMutation.isLoading ? 'Placing Order...' : 'Checkout'}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* ORDERS */}
+        {activeTab === 'orders' && (
+          <div className="max-w-2xl">
+            <h2 className="text-md font-semibold mb-4">My Orders</h2>
+
+            {ordersLoading ? (
+              <p className="text-gray-500">Loading...</p>
+            ) : orders.length === 0 ? (
+              <p className="text-gray-500">No orders yet</p>
+            ) : (
+              <div className="flex flex-col gap-4">
+                {orders.map((order) => (
+                  <div
+                    key={order.id}
+                    className="bg-white border rounded-xl p-4"
+                  >
+                    <div className="flex justify-between mb-2">
+                      <span className="font-medium">Order #{order.id}</span>
+                      <span className="text-sm text-gray-500">
+                        ${order.total_price}
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-500">
+                      Status: {order.status}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      Message: {order.Message}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </main>

@@ -1,50 +1,59 @@
 import React, { useState, useEffect } from 'react';
 import api from '../services/api';
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 const CategoryManager = () => {
-  const [categories, setCategories] = useState([]);
   const [catForm, setCatForm] = useState({ name: '' });
   const [msg, setMsg] = useState('');
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
 
-  useEffect(() => {
-    loadCategories();
-  }, []);
-
-  const loadCategories = async () => {
-    try {
+  const { data: categories, isLoading } = useQuery({
+    queryKey: ["categories"],
+    queryFn: async () => {
       const res = await api.get('/products/categories');
-      setCategories(res.data);
-    } catch (err) {
-      setMsg('Error loading categories.');
-    } finally {
-      setLoading(false);
-    }
-  };
+      return res.data;
+    },
+  });
 
-  const handleAddCategory = async (e) => {
-    e.preventDefault();
-    try {
-      await api.post('/products/categories', catForm);
-      setMsg(`Category "${catForm.name}" created successfully.`);
+  const addCategoryMutation = useMutation({
+    mutationFn: async (newCategory) => {
+      await api.post('/products/categories', newCategory);
+    },
+    onSuccess: (_, variables) => {
+      setMsg(`Category "${variables.name}" created successfully.`);
       setCatForm({ name: '' });
-      await loadCategories();
-    } catch (err) {
+
+      queryClient.invalidateQueries(["categories"]);
+    },
+    onError: (err) => {
       setMsg(err.response?.data?.detail || 'Error creating category.');
     }
-  };
+  });
 
-  // --- NEW DELETE HANDLER ---
-  const handleDeleteCategory = async (id, name) => {
-    if (!window.confirm(`Delete category "${name}"? Warning: This might affect products linked to this category.`)) return;
-    
-    try {
+
+  const deleteCategoryMutation = useMutation({
+    mutationFn: async ({ id }) => {
       await api.delete(`/products/categories/${id}`);
-      setMsg(`Category "${name}" deleted.`);
-      await loadCategories();
-    } catch (err) {
+    },
+    onSuccess: (_, variables) => {
+      setMsg(`Category "${variables.name}" deleted.`);
+
+
+      queryClient.invalidateQueries(["categories"]);
+    },
+    onError: (err) => {
       setMsg(err.response?.data?.detail || 'Error deleting category.');
     }
+  });
+
+  const handleAddCategory = (e) => {
+    e.preventDefault();
+    addCategoryMutation.mutate(catForm);
+  };
+
+  const handleDeleteCategory = (id, name) => {
+    if (!window.confirm(`Delete category "${name}"?`)) return;
+    deleteCategoryMutation.mutate({ id, name });
   };
 
   useEffect(() => {
@@ -54,7 +63,8 @@ const CategoryManager = () => {
     }
   }, [msg]);
 
-  if (loading) return <div className="text-sm text-gray-400">Loading categories...</div>;
+  if (isLoading)
+    return <div className="text-sm text-gray-400">Loading categories...</div>;
 
   return (
     <div className="space-y-6">
@@ -74,12 +84,9 @@ const CategoryManager = () => {
             placeholder="e.g. Accessories"
             value={catForm.name}
             onChange={e => setCatForm({ name: e.target.value })}
-            className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+            className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm"
           />
-          <button
-            type="submit"
-            className="bg-blue-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-blue-700 transition"
-          >
+          <button className="bg-blue-600 text-white text-sm px-4 py-2 rounded-lg">
             + Add category
           </button>
         </form>
@@ -89,28 +96,22 @@ const CategoryManager = () => {
         <div className="px-5 py-4 border-b border-gray-100">
           <h2 className="text-sm font-semibold text-gray-700">All categories</h2>
         </div>
+
         {categories.length === 0 ? (
           <div className="px-5 py-12 text-center text-sm text-gray-400">
             No categories yet.
           </div>
         ) : (
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
-              <tr>
-                <th className="px-5 py-3 text-left font-medium">ID</th>
-                <th className="px-5 py-3 text-left font-medium">Name</th>
-                <th className="px-5 py-3 text-right font-medium">Actions</th>
-              </tr>
-            </thead>
             <tbody>
               {categories.map(c => (
-                <tr key={c.id} className="border-t border-gray-100 hover:bg-gray-50 transition">
+                <tr key={c.id} className="border-t border-gray-100">
                   <td className="px-5 py-3 text-gray-400">#{c.id}</td>
-                  <td className="px-5 py-3 font-medium text-gray-800">{c.name}</td>
+                  <td className="px-5 py-3">{c.name}</td>
                   <td className="px-5 py-3 text-right">
                     <button
                       onClick={() => handleDeleteCategory(c.id, c.name)}
-                      className="text-xs border border-red-100 text-red-600 px-3 py-1 rounded-lg hover:bg-red-50 transition"
+                      className="text-xs border border-red-100 text-red-600 px-3 py-1 rounded-lg"
                     >
                       Delete
                     </button>
