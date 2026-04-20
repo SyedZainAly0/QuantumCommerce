@@ -134,8 +134,8 @@ const AdminHome = () => {
                   <td className="px-5 py-3">
                     <span
                       className={`text-xs font-medium px-2 py-0.5 rounded-full ${p.stock <= LOW_STOCK_THRESHOLD
-                          ? "bg-red-100 text-red-700"
-                          : "bg-green-100 text-green-700"
+                        ? "bg-red-100 text-red-700"
+                        : "bg-green-100 text-green-700"
                         }`}
                     >
                       {p.stock} {p.stock <= LOW_STOCK_THRESHOLD ? "⚠" : ""}

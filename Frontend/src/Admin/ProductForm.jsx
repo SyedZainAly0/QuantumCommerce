@@ -16,8 +16,8 @@ const ProductForm = () => {
     category_id: ''
   });
 
-  const [imageFile, setImageFile] = useState(null);          // new image file
-  const [imagePreview, setImagePreview] = useState(null);    // preview URL
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
   const [errors, setErrors] = useState({});
 
   const validateField = (name, value) => {
@@ -41,12 +41,11 @@ const ProductForm = () => {
     setErrors(prev => ({ ...prev, [name]: validateField(name, value) }));
   };
 
-  // Handle image file selection
   const handleImageChange = (e) => {
     const file = e.target.files[0];
     if (!file) return;
     setImageFile(file);
-    setImagePreview(URL.createObjectURL(file)); // show local preview instantly
+    setImagePreview(URL.createObjectURL(file));
   };
 
   const { data: categories = [] } = useQuery({
@@ -62,7 +61,7 @@ const ProductForm = () => {
     queryFn: async () => {
       const res = await api.get(`/products/${id}`);
       setForm(res.data);
-      // Show existing image as preview when editing
+
       if (res.data.image) {
         setImagePreview(`http://localhost:8000${res.data.image}`);
       }
@@ -71,7 +70,7 @@ const ProductForm = () => {
     enabled: !!id,
   });
 
-  // Build FormData for both add and update
+
   const buildFormData = () => {
     const formData = new FormData();
     formData.append('name', form.name);
@@ -79,7 +78,7 @@ const ProductForm = () => {
     formData.append('price', parseFloat(form.price));
     formData.append('stock', parseInt(form.stock));
     if (form.category_id) formData.append('category_id', form.category_id);
-    if (imageFile) formData.append('image', imageFile); // only append if selected
+    if (imageFile) formData.append('image', imageFile);
     return formData;
   };
 
@@ -132,7 +131,6 @@ const ProductForm = () => {
 
         <form onSubmit={handleSubmit} className="space-y-5">
 
-          {/* Name */}
           <div>
             <label className="text-sm font-medium text-gray-600">Product Name</label>
             <input
@@ -146,7 +144,6 @@ const ProductForm = () => {
             {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name}</p>}
           </div>
 
-          {/* Description */}
           <div>
             <label className="text-sm font-medium text-gray-600">Description</label>
             <textarea
@@ -161,7 +158,6 @@ const ProductForm = () => {
             {errors.description && <p className="text-red-500 text-xs mt-1">{errors.description}</p>}
           </div>
 
-          {/* Price & Stock */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="text-sm font-medium text-gray-600">Price ($)</label>
@@ -191,7 +187,6 @@ const ProductForm = () => {
             </div>
           </div>
 
-          {/* Category */}
           <div>
             <label className="text-sm font-medium text-gray-600">Category</label>
             <select
@@ -209,11 +204,9 @@ const ProductForm = () => {
             {errors.category_id && <p className="text-red-500 text-xs mt-1">{errors.category_id}</p>}
           </div>
 
-          {/* Image Upload */}
           <div>
             <label className="text-sm font-medium text-gray-600">Product Image</label>
 
-            {/* Preview */}
             {imagePreview && (
               <div className="mt-2 mb-2">
                 <img
@@ -237,7 +230,6 @@ const ProductForm = () => {
             )}
           </div>
 
-          {/* Buttons */}
           <div className="flex justify-end gap-3 pt-4">
             <button
               type="button"
@@ -251,7 +243,7 @@ const ProductForm = () => {
               disabled={isSaving || hasErrors}
               className="px-5 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
             >
-              {isSaving ? 'Saving...' : 'Submit'}
+              {isSaving ? 'Saving...' : 'Update Product'}
             </button>
           </div>
 

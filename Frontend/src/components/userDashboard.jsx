@@ -17,7 +17,6 @@ const UserDashboard = () => {
 
   const guestCart = useCart();
 
-  // USER
   const { data: user } = useQuery({
     queryKey: ['me'],
     queryFn: async () => (await api.get('/auth/me')).data,
@@ -25,7 +24,6 @@ const UserDashboard = () => {
     onError: () => navigate('/login'),
   });
 
-  // CART — stable sort by id prevents reordering on refetch
   const { data: cartItems = [], isLoading: cartLoading } = useQuery({
     queryKey: ['cart'],
     queryFn: async () => (await api.get('/cart/')).data,
@@ -33,14 +31,12 @@ const UserDashboard = () => {
     select: (data) => [...data].sort((a, b) => a.id - b.id),
   });
 
-  // ORDERS
   const { data: orders = [], isLoading: ordersLoading } = useQuery({
     queryKey: ['orders'],
     queryFn: async () => (await api.get('/orders/')).data,
     enabled: activeTab === 'orders',
   });
 
-  // SYNC GUEST CART
   useEffect(() => {
     const syncCart = async () => {
       if (guestCart.items.length === 0) return;
@@ -64,23 +60,21 @@ const UserDashboard = () => {
         console.error('Cart sync failed', e);
       }
     };
-
     syncCart();
   }, []);
 
-  // UPDATE CART — optimistic update so quantity changes are instant with no reorder
+
   const updateCartMutation = useMutation({
     mutationFn: async ({ item_id, quantity }) =>
       (await api.put(`/cart/${item_id}`, { quantity })).data,
 
     onMutate: async ({ item_id, quantity }) => {
-      // Cancel any in-flight refetches so they don't overwrite our optimistic update
+
       await queryClient.cancelQueries(['cart']);
 
-      // Snapshot current cache so we can roll back on error
+
       const previous = queryClient.getQueryData(['cart']);
 
-      // Instantly update the quantity in the cache — no refetch, no reorder
       queryClient.setQueryData(['cart'], (old) =>
         old.map((item) =>
           item.id === item_id ? { ...item, quantity } : item
@@ -91,25 +85,22 @@ const UserDashboard = () => {
     },
 
     onError: (_err, _vars, context) => {
-      // Roll back to the snapshot if the request fails
       queryClient.setQueryData(['cart'], context.previous);
       setLoadingItemId(null);
     },
 
     onSettled: () => {
-      // Sync with server after success or error
       queryClient.invalidateQueries(['cart']);
       setLoadingItemId(null);
     },
   });
 
-  // REMOVE ITEM
+
   const removeCartMutation = useMutation({
     mutationFn: async (id) => api.delete(`/cart/${id}`),
     onSuccess: () => queryClient.invalidateQueries(['cart']),
   });
 
-  // CHECKOUT
   const checkoutMutation = useMutation({
     mutationFn: async () => (await api.post('/orders/checkout')).data,
     onSuccess: () => {
@@ -130,7 +121,6 @@ const UserDashboard = () => {
     navigate('/login');
   };
 
-  // BILLING
   const subtotal = cartItems.reduce(
     (sum, i) => sum + (i.product?.price || 0) * i.quantity,
     0

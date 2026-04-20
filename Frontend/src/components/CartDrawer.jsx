@@ -16,13 +16,10 @@ const CartDrawer = ({ open, onClose, cartHook, isLoggedIn }) => {
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
 
-
       <div
         onClick={onClose}
         className="absolute inset-0 bg-black/30 backdrop-blur-sm"
       />
-
-
       <div className="relative flex flex-col w-[360px] max-w-[90vw] h-full bg-white dark:bg-neutral-900 border-l border-neutral-200 dark:border-neutral-700 shadow-xl">
 
         <div className="flex items-center justify-between px-5 py-4 border-b border-neutral-200 dark:border-neutral-700">
