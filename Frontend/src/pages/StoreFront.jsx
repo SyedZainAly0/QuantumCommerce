@@ -135,7 +135,7 @@ const StoreFront = () => {
             setPage(1);
           }}
           className="w-64 md:w-80 text-sm bg-white border border-gray-300 rounded-lg px-4 py-2.5 
-  shadow-sm placeholder-gray-400
+           shadow-sm placeholder-gray-400
   focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 
   transition"
         />
