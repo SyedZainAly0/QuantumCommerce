@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import api from '../services/api';
 import { useNavigate, Link } from 'react-router-dom';
+import { validateAuthForm } from '../utils/validation';
+
 
 const Login = () => {
   const [form, setForm] = useState({
@@ -12,22 +14,9 @@ const Login = () => {
   const [apiError, setApiError] = useState('');
   const navigate = useNavigate();
 
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[cC][oO][mM]$/;
-
-  const passwordRegex =
-    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&]).{8,}$/;
 
   const validate = () => {
-    let newErrors = {};
-
-    if (!emailRegex.test(form.email)) {
-      newErrors.email = "Email must be valid";
-    }
-
-    if (!passwordRegex.test(form.password)) {
-      newErrors.password =
-        "Password must be 8+ chars with uppercase, lowercase, number & special char";
-    }
+    const newErrors = validateAuthForm(form);
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;

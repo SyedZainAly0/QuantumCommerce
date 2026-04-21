@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import api from '../services/api';
 import { useNavigate, Link } from 'react-router-dom';
+import { validateAuthForm } from '../utils/validation';
+
 
 const Register = () => {
   const [form, setForm] = useState({
@@ -14,26 +16,8 @@ const Register = () => {
   const [apiError, setApiError] = useState('');
   const navigate = useNavigate();
 
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[cC][oO][mM]$/;
-
-  const passwordRegex =
-    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&]).{8,}$/;
-
   const validate = () => {
-    let newErrors = {};
-
-    if (!form.full_name || form.full_name.trim().length < 3) {
-      newErrors.full_name = "Full name must be at least 3 characters";
-    }
-
-    if (!emailRegex.test(form.email)) {
-      newErrors.email = "Email must be valid";
-    }
-
-    if (!passwordRegex.test(form.password)) {
-      newErrors.password =
-        "Password must be 8+ chars with uppercase, lowercase, number & special character";
-    }
+    const newErrors = validateAuthForm(form);
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -141,8 +125,7 @@ const Register = () => {
             }
             className="w-full p-3 border border-gray-200 rounded-lg text-sm bg-white"
           >
-            <option value="user">User</option>
-            <option value="admin" disabled>Admin</option>
+            <option value="user" selected>User</option>
           </select>
 
           <button
