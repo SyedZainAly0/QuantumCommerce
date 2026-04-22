@@ -19,7 +19,6 @@ def register_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="User with this email already exists.")
     return crud.create_user(db=db, user=user)
 
-
 @router.post("/login")
 def login(response: Response, user_credentials: schemas.UserLogin, db: Session = Depends(get_db)):
     user = db.query(models.User).filter(models.User.email == user_credentials.email).first()
@@ -32,17 +31,13 @@ def login(response: Response, user_credentials: schemas.UserLogin, db: Session =
         key="access_token",
         value=f"Bearer {access_token}",
         httponly=True,
-        max_age=3600,
+        max_age=900,
         samesite="lax",
         secure=False
     )
     return {
-        "message": "Login Successful",
-        "user_name": user.full_name,
-        "access_token": access_token,
         "role": user.role
     }
-
 
 @router.get("/me")
 def get_me(current_user: models.User = Depends(oauth2.get_current_user)):
@@ -59,18 +54,18 @@ def logout(response: Response):
     return {"message": "Successfully logged out"}
     
 
-@router.post("/register1")
-async def register_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
+# @router.post("/register1")
+# async def register_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
     
-    new_user = models.User(
-        email=user.email,
-        password=user.password
-    )
+#     new_user = models.User(
+#         email=user.email,
+#         password=user.password
+#     )
 
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
+#     db.add(new_user)
+#     db.commit()
+#     db.refresh(new_user)
 
-    await send_email(user.email)
+#     await send_email(user.email)
 
-    return {"message": "User created and email sent"}
+#     return {"message": "User created and email sent"}

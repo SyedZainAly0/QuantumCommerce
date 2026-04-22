@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile, Form
+from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile, Form, Request
 from sqlalchemy.orm import Session
 from Authenticationapp.database import get_db
 from Products import models, schemas
@@ -8,6 +8,11 @@ import shutil
 import os
 import uuid
 from typing import Optional
+from utils.Validations import validate_image
+from sqlalchemy.orm import joinedload
+from exception.custom_exceptions import ProductNotFoundException,CategoryNotFoundException
+
+
 
 router = APIRouter(prefix="/products", tags=["Products"])
 
@@ -40,7 +45,7 @@ def delete_category(
     category = category_query.first()
 
     if not category:
-        raise HTTPException(status_code=404, detail="Category not found")
+        raise CategoryNotFoundException(category_id)
 
     category_query.delete(synchronize_session=False)
     db.commit()
@@ -64,11 +69,13 @@ def get_admin_products(
 
 @router.get("/", response_model=list[schemas.ProductOut])
 def list_products(db: Session = Depends(get_db)):
-    return db.query(models.Product).all()
-
+  return db.query(models.Product)\
+    .options(joinedload(models.Product.category))\
+    .all()
 
 @router.post("/", response_model=schemas.ProductOut, status_code=status.HTTP_201_CREATED)
 def create_product(
+    request: Request,
     name: str = Form(...),
     description: str = Form(...),
     price: float = Form(...),
@@ -81,6 +88,7 @@ def create_product(
     image_path = None
 
     if image:
+        validate_image(image, request)
         filename = f"{uuid.uuid4()}_{image.filename}"
         file_location = os.path.join(UPLOAD_DIR, filename)
         with open(file_location, "wb") as buffer:
@@ -106,6 +114,7 @@ def create_product(
 @router.put("/{product_id}", response_model=schemas.ProductOut)
 def update_product(
     product_id: int,
+    request: Request,
     name: str = Form(...),
     description: str = Form(...),
     price: float = Form(...),
@@ -121,7 +130,7 @@ def update_product(
     ).first()
 
     if not db_product:
-        raise HTTPException(status_code=404, detail="Product not found")
+        raise ProductNotFoundException(product_id=product_id)
 
     db_product.name = name
     db_product.description = description
@@ -129,10 +138,10 @@ def update_product(
     db_product.stock = stock
     db_product.category_id = category_id
 
-
     if image:
+        validate_image(image, request)  # sync call, no await
         if db_product.image:
-            old_path = db_product.image.lstrip("/")  
+            old_path = db_product.image.lstrip("/")
             if os.path.exists(old_path):
                 os.remove(old_path)
 
@@ -158,7 +167,7 @@ def delete_product(
     ).first()
 
     if not db_product:
-        raise HTTPException(status_code=404, detail="Product not found")
+        raise ProductNotFoundException(product_id=product_id)
 
     if db_product.image:
         old_path = db_product.image.lstrip("/")
@@ -182,6 +191,6 @@ def get_single_product(
     ).first()
 
     if not product:
-        raise HTTPException(status_code=404, detail="Product not found")
-
+        raise ProductNotFoundException(product_id=product_id)
+    
     return product

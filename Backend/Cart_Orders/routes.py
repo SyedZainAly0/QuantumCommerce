@@ -7,7 +7,15 @@ from Cart_Orders import models, schemas
 from Products.models import Product
 from fastapi import BackgroundTasks
 from utils.email_service import send_order_email
-
+from exception.custom_exceptions import (
+    ProductNotFoundException,
+    InsufficientStockException,
+    CartItemNotFoundException,
+    InvalidQuantityException,
+    EmptyCartException,
+    ProductNoLongerExistsException,
+    OrderNotFoundException
+)
 
 router = APIRouter(prefix="/cart", tags=["Cart & Orders"])
 
@@ -32,9 +40,9 @@ def add_to_cart(
     
     product = db.query(Product).filter(Product.id == item.product_id).first()
     if not product:
-        raise HTTPException(status_code=404, detail="Product not found")
+        raise ProductNotFoundException(product_id=item.product_id)
     if product.stock < item.quantity:
-        raise HTTPException(status_code=400, detail="Not enough stock")
+         raise InsufficientStockException() 
 
     existing = (
         db.query(models.CartItem)
@@ -78,9 +86,9 @@ def update_cart_item(
         .first()
     )
     if not cart_item:
-        raise HTTPException(status_code=404, detail="Cart item not found")
+        raise CartItemNotFoundException(item_id=item_id)
     if payload.quantity <= 0:
-        raise HTTPException(status_code=400, detail="Quantity must be at least 1")
+        raise InvalidQuantityException() 
 
     cart_item.quantity = payload.quantity
     db.commit()
@@ -104,7 +112,7 @@ def remove_from_cart(
         .first()
     )
     if not cart_item:
-        raise HTTPException(status_code=404, detail="Cart item not found")
+        raise CartItemNotFoundException(item_id=item_id)
     db.delete(cart_item)
     db.commit()
 
@@ -134,7 +142,7 @@ def checkout(
         .all()
     )
     if not cart_items:
-        raise HTTPException(status_code=400, detail="Cart is empty")
+        raise EmptyCartException()
 
     total = 0.0
     order_items = []
@@ -142,15 +150,9 @@ def checkout(
     for ci in cart_items:
         product = db.query(Product).filter(Product.id == ci.product_id).first()
         if not product:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Product ID {ci.product_id} no longer exists"
-            )
+            raise ProductNoLongerExistsException(product_id=ci.product_id)
         if product.stock < ci.quantity:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Not enough stock for '{product.name}'"
-            )
+             raise InsufficientStockException(product_name=product.name)
 
         product.stock -= ci.quantity
         line_total = product.price * ci.quantity
@@ -223,5 +225,5 @@ def get_order_detail(
         .first()
     )
     if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
+        raise OrderNotFoundException(order_id=order_id)
     return order
