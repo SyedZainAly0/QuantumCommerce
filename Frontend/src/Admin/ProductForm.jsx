@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { validateImageFile } from '../utils/validation';
+
 
 const ProductForm = () => {
   const { id } = useParams();
@@ -18,7 +20,9 @@ const ProductForm = () => {
 
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
-  const [errors, setErrors] = useState({});
+  const [errors, setErrors] = useState({
+    image: ''
+  });
 
   const validateField = (name, value) => {
     let error = '';
@@ -41,9 +45,19 @@ const ProductForm = () => {
     setErrors(prev => ({ ...prev, [name]: validateField(name, value) }));
   };
 
-  const handleImageChange = (e) => {
+  const handleImageChange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
+
+    const fileErrors = await validateImageFile(file);
+
+    if (fileErrors.length > 0) {
+      setErrors(prev => ({ ...prev, image: fileErrors[0] }));
+      e.target.value = '';
+      return;
+    }
+
+    setErrors(prev => ({ ...prev, image: '' }));
     setImageFile(file);
     setImagePreview(URL.createObjectURL(file));
   };
@@ -61,11 +75,6 @@ const ProductForm = () => {
     queryFn: async () => {
       const res = await api.get(`/products/${id}`);
       setForm(res.data);
-
-      if (res.data.image) {
-        setImagePreview(`http://localhost:8000${res.data.image}`);
-      }
-      return res.data;
     },
     enabled: !!id,
   });
@@ -222,12 +231,10 @@ const ProductForm = () => {
               accept="image/*"
               onChange={handleImageChange}
               className="mt-1 w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4
-                file:rounded-lg file:border-0 file:text-sm file:font-medium
-                file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 transition"
+    file:rounded-lg file:border-0 file:text-sm file:font-medium
+    file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 transition"
             />
-            {id && !imageFile && (
-              <p className="text-xs text-gray-400 mt-1">Leave empty to keep existing image</p>
-            )}
+            {errors.image && <p className="text-red-500 text-xs mt-1">{errors.image}</p>}
           </div>
 
           <div className="flex justify-end gap-3 pt-4">
