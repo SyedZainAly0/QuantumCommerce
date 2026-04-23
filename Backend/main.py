@@ -6,6 +6,10 @@ from Authenticationapp import models
 from Authenticationapp.routes import auth
 from Products.routes import router as product_router
 from Cart_Orders.routes import router as cart_router, orders_router
+from fastapi import FastAPI, Request, status
+from exception.handlers import register_exception_handlers
+
+
 
 app = FastAPI()
 
@@ -23,6 +27,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+register_exception_handlers(app) 
 
 # ── Static files & routers ────────────────────────────────────────────────────
 app.mount("/media", StaticFiles(directory="media"), name="media")

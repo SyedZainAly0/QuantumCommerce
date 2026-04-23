@@ -18,7 +18,7 @@ def get_current_user(request: Request, db: Session = Depends(database.get_db)):
         else:
             token = token_cookie
 
-        payload = jwt.decode(token, utils.SECRET_KEY, algorithms=[utils.ALGORITHM])
+        payload = jwt.decode(token, utils.SECRET_KEY, algorithms=[utils.ALGORITHM], options={"verify_exp": True})
         user_id = payload.get("user_id")
 
         if user_id is None:

@@ -1,20 +1,21 @@
-from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile, Form
+from fastapi import APIRouter, Depends, status, File, UploadFile, Form, Request
 from sqlalchemy.orm import Session
 from Authenticationapp.database import get_db
 from Products import models, schemas
 from Authenticationapp import models as auth_models
 from Authenticationapp.oauth2 import RoleChecker
-import shutil
-import os
-import uuid
+import shutil, os, uuid
 from typing import Optional
+from utils.Validations import validate_image
+from sqlalchemy.orm import joinedload
+from exception.custom_exceptions import AppException
 
 router = APIRouter(prefix="/products", tags=["Products"])
-
 allow_admin = RoleChecker(["admin"])
 
 UPLOAD_DIR = "media/products"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+
 
 @router.get("/categories", response_model=list[schemas.CategoryOut])
 def get_categories(db: Session = Depends(get_db)):
@@ -37,11 +38,12 @@ def delete_category(
     current_admin: auth_models.User = Depends(allow_admin)
 ):
     category_query = db.query(models.Category).filter(models.Category.id == category_id)
-    category = category_query.first()
-
-    if not category:
-        raise HTTPException(status_code=404, detail="Category not found")
-
+    if not category_query.first():
+        raise AppException(
+            status_code=404,
+            title="Category Not Found",
+            detail=f"Category with id {category_id} does not exist."
+        )
     category_query.delete(synchronize_session=False)
     db.commit()
     return {"detail": "Category deleted successfully"}
@@ -64,11 +66,14 @@ def get_admin_products(
 
 @router.get("/", response_model=list[schemas.ProductOut])
 def list_products(db: Session = Depends(get_db)):
-    return db.query(models.Product).all()
+    return db.query(models.Product)\
+        .options(joinedload(models.Product.category))\
+        .all()
 
 
 @router.post("/", response_model=schemas.ProductOut, status_code=status.HTTP_201_CREATED)
 def create_product(
+    request: Request,
     name: str = Form(...),
     description: str = Form(...),
     price: float = Form(...),
@@ -79,8 +84,8 @@ def create_product(
     current_admin: auth_models.User = Depends(allow_admin)
 ):
     image_path = None
-
     if image:
+        validate_image(image, request)
         filename = f"{uuid.uuid4()}_{image.filename}"
         file_location = os.path.join(UPLOAD_DIR, filename)
         with open(file_location, "wb") as buffer:
@@ -96,7 +101,6 @@ def create_product(
         image=image_path,
         owner_id=current_admin.id
     )
-
     db.add(new_product)
     db.commit()
     db.refresh(new_product)
@@ -106,6 +110,7 @@ def create_product(
 @router.put("/{product_id}", response_model=schemas.ProductOut)
 def update_product(
     product_id: int,
+    request: Request,
     name: str = Form(...),
     description: str = Form(...),
     price: float = Form(...),
@@ -121,7 +126,11 @@ def update_product(
     ).first()
 
     if not db_product:
-        raise HTTPException(status_code=404, detail="Product not found")
+        raise AppException(
+            status_code=404,
+            title="Product Not Found",
+            detail=f"Product with id {product_id} does not exist."
+        )
 
     db_product.name = name
     db_product.description = description
@@ -129,13 +138,12 @@ def update_product(
     db_product.stock = stock
     db_product.category_id = category_id
 
-
     if image:
+        validate_image(image, request)
         if db_product.image:
-            old_path = db_product.image.lstrip("/")  
+            old_path = db_product.image.lstrip("/")
             if os.path.exists(old_path):
                 os.remove(old_path)
-
         filename = f"{uuid.uuid4()}_{image.filename}"
         file_location = os.path.join(UPLOAD_DIR, filename)
         with open(file_location, "wb") as buffer:
@@ -145,6 +153,7 @@ def update_product(
     db.commit()
     db.refresh(db_product)
     return db_product
+
 
 @router.delete("/{product_id}")
 def delete_product(
@@ -158,7 +167,11 @@ def delete_product(
     ).first()
 
     if not db_product:
-        raise HTTPException(status_code=404, detail="Product not found")
+        raise AppException(
+            status_code=404,
+            title="Product Not Found",
+            detail=f"Product with id {product_id} does not exist."
+        )
 
     if db_product.image:
         old_path = db_product.image.lstrip("/")
@@ -182,6 +195,9 @@ def get_single_product(
     ).first()
 
     if not product:
-        raise HTTPException(status_code=404, detail="Product not found")
-
+        raise AppException(
+            status_code=404,
+            title="Product Not Found",
+            detail=f"Product with id {product_id} does not exist."
+        )
     return product
