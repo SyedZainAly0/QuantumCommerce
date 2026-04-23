@@ -1,23 +1,15 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status, BackgroundTasks
 from sqlalchemy.orm import Session
 from Authenticationapp.database import get_db
 from Authenticationapp import models as auth_models
 from Authenticationapp.oauth2 import get_current_user
 from Cart_Orders import models, schemas
 from Products.models import Product
-from fastapi import BackgroundTasks
 from utils.email_service import send_order_email
-from exception.custom_exceptions import (
-    ProductNotFoundException,
-    InsufficientStockException,
-    CartItemNotFoundException,
-    InvalidQuantityException,
-    EmptyCartException,
-    ProductNoLongerExistsException,
-    OrderNotFoundException
-)
+from exception.custom_exceptions import AppException
 
 router = APIRouter(prefix="/cart", tags=["Cart & Orders"])
+orders_router = APIRouter(prefix="/orders", tags=["Orders"])
 
 
 @router.get("/", response_model=list[schemas.CartItemOut])
@@ -25,11 +17,8 @@ def get_cart(
     db: Session = Depends(get_db),
     current_user: auth_models.User = Depends(get_current_user)
 ):
-    return (
-        db.query(models.CartItem)
-        .filter(models.CartItem.user_id == current_user.id)
-        .all()
-    )
+    return db.query(models.CartItem).filter(models.CartItem.user_id == current_user.id).all()
+
 
 @router.post("/", response_model=schemas.CartItemOut, status_code=status.HTTP_201_CREATED)
 def add_to_cart(
@@ -37,21 +26,24 @@ def add_to_cart(
     db: Session = Depends(get_db),
     current_user: auth_models.User = Depends(get_current_user)
 ):
-    
     product = db.query(Product).filter(Product.id == item.product_id).first()
     if not product:
-        raise ProductNotFoundException(product_id=item.product_id)
-    if product.stock < item.quantity:
-         raise InsufficientStockException() 
-
-    existing = (
-        db.query(models.CartItem)
-        .filter(
-            models.CartItem.user_id == current_user.id,
-            models.CartItem.product_id == item.product_id
+        raise AppException(
+            status_code=404,
+            title="Product Not Found",
+            detail=f"Product with id {item.product_id} does not exist."
         )
-        .first()
-    )
+    if product.stock < item.quantity:
+        raise AppException(
+            status_code=400,
+            title="Insufficient Stock",
+            detail="Product does not have enough stock for the requested quantity."
+        )
+
+    existing = db.query(models.CartItem).filter(
+        models.CartItem.user_id == current_user.id,
+        models.CartItem.product_id == item.product_id
+    ).first()
 
     if existing:
         existing.quantity += item.quantity
@@ -77,18 +69,23 @@ def update_cart_item(
     db: Session = Depends(get_db),
     current_user: auth_models.User = Depends(get_current_user)
 ):
-    cart_item = (
-        db.query(models.CartItem)
-        .filter(
-            models.CartItem.id == item_id,
-            models.CartItem.user_id == current_user.id
-        )
-        .first()
-    )
+    cart_item = db.query(models.CartItem).filter(
+        models.CartItem.id == item_id,
+        models.CartItem.user_id == current_user.id
+    ).first()
+
     if not cart_item:
-        raise CartItemNotFoundException(item_id=item_id)
+        raise AppException(
+            status_code=404,
+            title="Cart Item Not Found",
+            detail=f"Cart item with id {item_id} does not exist."
+        )
     if payload.quantity <= 0:
-        raise InvalidQuantityException() 
+        raise AppException(
+            status_code=400,
+            title="Invalid Quantity",
+            detail="Quantity must be greater than 0."
+        )
 
     cart_item.quantity = payload.quantity
     db.commit()
@@ -102,17 +99,17 @@ def remove_from_cart(
     db: Session = Depends(get_db),
     current_user: auth_models.User = Depends(get_current_user)
 ):
+    cart_item = db.query(models.CartItem).filter(
+        models.CartItem.id == item_id,
+        models.CartItem.user_id == current_user.id
+    ).first()
 
-    cart_item = (
-        db.query(models.CartItem)
-        .filter(
-            models.CartItem.id == item_id,
-            models.CartItem.user_id == current_user.id
-        )
-        .first()
-    )
     if not cart_item:
-        raise CartItemNotFoundException(item_id=item_id)
+        raise AppException(
+            status_code=404,
+            title="Cart Item Not Found",
+            detail=f"Cart item with id {item_id} does not exist."
+        )
     db.delete(cart_item)
     db.commit()
 
@@ -122,27 +119,24 @@ def clear_cart(
     db: Session = Depends(get_db),
     current_user: auth_models.User = Depends(get_current_user)
 ):
-    db.query(models.CartItem).filter(
-        models.CartItem.user_id == current_user.id
-    ).delete()
+    db.query(models.CartItem).filter(models.CartItem.user_id == current_user.id).delete()
     db.commit()
 
 
-orders_router = APIRouter(prefix="/orders", tags=["Orders"])
-
 @orders_router.post("/checkout", response_model=schemas.OrderOut, status_code=status.HTTP_201_CREATED)
 def checkout(
-    background_tasks: BackgroundTasks, 
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: auth_models.User = Depends(get_current_user)
 ):
-    cart_items = (
-        db.query(models.CartItem)
-        .filter(models.CartItem.user_id == current_user.id)
-        .all()
-    )
+    cart_items = db.query(models.CartItem).filter(models.CartItem.user_id == current_user.id).all()
+
     if not cart_items:
-        raise EmptyCartException()
+        raise AppException(
+            status_code=400,
+            title="Empty Cart",
+            detail="Your cart is empty. Add items before checking out."
+        )
 
     total = 0.0
     order_items = []
@@ -150,14 +144,20 @@ def checkout(
     for ci in cart_items:
         product = db.query(Product).filter(Product.id == ci.product_id).first()
         if not product:
-            raise ProductNoLongerExistsException(product_id=ci.product_id)
+            raise AppException(
+                status_code=404,
+                title="Product No Longer Exists",
+                detail=f"Product with id {ci.product_id} no longer exists."
+            )
         if product.stock < ci.quantity:
-             raise InsufficientStockException(product_name=product.name)
+            raise AppException(
+                status_code=400,
+                title="Insufficient Stock",
+                detail=f"Product '{product.name}' does not have enough stock."
+            )
 
         product.stock -= ci.quantity
-        line_total = product.price * ci.quantity
-        total += line_total
-
+        total += product.price * ci.quantity
         order_items.append(
             models.OrderItem(
                 product_id=product.id,
@@ -180,20 +180,11 @@ def checkout(
         oi.order_id = order.id
         db.add(oi)
 
-    db.query(models.CartItem).filter(
-        models.CartItem.user_id == current_user.id
-    ).delete()
-
+    db.query(models.CartItem).filter(models.CartItem.user_id == current_user.id).delete()
     db.commit()
     db.refresh(order)
 
-    background_tasks.add_task(
-        send_order_email,
-        current_user.email,
-        order.id,
-        order.total_price
-    )
-
+    background_tasks.add_task(send_order_email, current_user.email, order.id, order.total_price)
     return order
 
 
@@ -202,12 +193,9 @@ def get_my_orders(
     db: Session = Depends(get_db),
     current_user: auth_models.User = Depends(get_current_user)
 ):
-    return (
-        db.query(models.Order)
-        .filter(models.Order.user_id == current_user.id)
-        .order_by(models.Order.created_at.desc())
-        .all()
-    )
+    return db.query(models.Order).filter(
+        models.Order.user_id == current_user.id
+    ).order_by(models.Order.created_at.desc()).all()
 
 
 @orders_router.get("/{order_id}", response_model=schemas.OrderOut)
@@ -216,14 +204,15 @@ def get_order_detail(
     db: Session = Depends(get_db),
     current_user: auth_models.User = Depends(get_current_user)
 ):
-    order = (
-        db.query(models.Order)
-        .filter(
-            models.Order.id == order_id,
-            models.Order.user_id == current_user.id
-        )
-        .first()
-    )
+    order = db.query(models.Order).filter(
+        models.Order.id == order_id,
+        models.Order.user_id == current_user.id
+    ).first()
+
     if not order:
-        raise OrderNotFoundException(order_id=order_id)
+        raise AppException(
+            status_code=404,
+            title="Order Not Found",
+            detail=f"Order with id {order_id} does not exist."
+        )
     return order
